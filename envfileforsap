@@ -1,0 +1,14 @@
+# SAP BTP ABAP Trial Configuration
+SAP_ODATA_URL=https://94112c48-db0e-4021-a981-77ca818c73cb.abap.ap21.hana.ondemand.com/sap/opu/odata
+SAP_SYSTEM_USERNAME=your-email@example.com
+SAP_SYSTEM_PASSWORD=YourPasswordHere123!
+
+# Flight Reference Scenario Services
+ODATA_DISCOVERY_MODE=whitelist
+ODATA_SERVICE_PATTERNS=/DMO/FLIGHT,/DMO/TRAVEL,/DMO/CUSTOMER,/DMO/BOOKING,/DMO/AGENCY
+
+# Settings
+ODATA_MAX_SERVICES=50
+MCP_TOOL_REGISTRY_TYPE=hierarchical
+LOG_LEVEL=debug
+PORT=4000
