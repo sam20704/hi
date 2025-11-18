@@ -16,6 +16,14 @@ export class DestinationService {
 
     async initialize(): Promise<void> {
         try {
+            // ===== LOCAL DEVELOPMENT FIX =====
+            // Skip destination service initialization if SAP_ODATA_URL is set
+            if (process.env.SAP_ODATA_URL && process.env.SAP_ODATA_URL.length > 0) {
+                this.logger.info('✅ SAP_ODATA_URL is set — skipping destination service initialization (local dev mode)');
+                return;
+            }
+            // ===== END LOCAL DEVELOPMENT FIX =====
+
             // Load VCAP services
             xsenv.loadEnv();
             this.vcapServices = xsenv.getServices({
@@ -36,6 +44,17 @@ export class DestinationService {
      * Get destination for API discovery (uses technical user)
      */
     async getDiscoveryDestination(): Promise<HttpDestination> {
+        // Check if using local SAP_ODATA_URL
+        if (process.env.SAP_ODATA_URL) {
+            this.logger.info('Using SAP_ODATA_URL from environment for discovery');
+            return {
+                url: process.env.SAP_ODATA_URL.replace('/sap/opu/odata', ''), // Remove trailing path
+                username: process.env.SAP_SYSTEM_USERNAME,
+                password: process.env.SAP_SYSTEM_PASSWORD,
+                authentication: 'BasicAuthentication'
+            } as HttpDestination;
+        }
+
         const destinationName = this.config.get('sap.discoveryDestinationName',
             this.config.get('sap.destinationName', 'SAP_SYSTEM'));
 
@@ -47,6 +66,17 @@ export class DestinationService {
      * Get destination for API execution (uses JWT token if provided)
      */
     async getExecutionDestination(jwtToken?: string): Promise<HttpDestination> {
+        // Check if using local SAP_ODATA_URL
+        if (process.env.SAP_ODATA_URL) {
+            this.logger.info('Using SAP_ODATA_URL from environment for execution');
+            return {
+                url: process.env.SAP_ODATA_URL.replace('/sap/opu/odata', ''), // Remove trailing path
+                username: process.env.SAP_SYSTEM_USERNAME,
+                password: process.env.SAP_SYSTEM_PASSWORD,
+                authentication: 'BasicAuthentication'
+            } as HttpDestination;
+        }
+
         const destinationName = this.config.get('sap.executionDestinationName',
             this.config.get('sap.destinationName', 'SAP_SYSTEM'));
 
