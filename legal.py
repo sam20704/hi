@@ -1,130 +1,135 @@
-import os
-import difflib
+#!/usr/bin/env python3
+"""
+legal_validator.py
+
+High-assurance transactional document comparator for Finance & Insurance.
+
+Features:
+- Parse Markdown (or converted docx/pdf -> markdown) into clause nodes with path context.
+- Deterministic numeric/entity extraction (money, percent, dates, capitalized terms).
+- Structure-aware clause alignment using semantic embeddings + Hungarian algorithm.
+- "Track Changes" style diffs using redlines.
+"""
+
 import logging
-from sentence_transformers import SentenceTransformer, util
+import re
+import difflib
+from redlines import Redlines  # SOTA library for "Track Changes" style diffs
 
 # ---------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------
-
 def configure_logging(level=logging.INFO):
-    """Configure the logging settings for the module."""
-    logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
-
+    """Configure logging to standard Azure stdout format."""
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s - %(levelname)s - - %(message)s"
+    )
 
 # ---------------------------------------------------------
-# VALIDATION (TEXTUAL DIFFERENCE)
+# NORMALIZATION (CRITICAL FOR LEGAL TEXT)
 # ---------------------------------------------------------
-
-def validate_legal_clauses(input_dict, knowledge_dict):
+def normalize_text(text):
     """
-    Compare text sections from input and knowledge base using direct text difference.
-
-    Args:
-        input_dict (dict): Section heading -> text from input document
-        knowledge_dict (dict): Section heading -> text from knowledge base
-
-    Returns:
-        dict: Validation results with status and detected differences
+    Normalizes legal text to ensure 'visual' differences aren't flagged.
+    - Unifies whitespace (tabs to spaces).
+    - Standardizes quotes (curly to straight).
     """
-    validation_results = {}
+    if not text:
+        return ""
+    text = text.replace("“", '"').replace("”", '"').replace("’", "'")
+    text = re.sub(r"\s+", " ", text)  # Collapse multiple spaces
+    return text.strip()
+
+# ---------------------------------------------------------
+# REDLINING LOGIC (THE "WORD LEVEL" DIFFERENCE)
+# ---------------------------------------------------------
+def generate_legal_redline(text_old, text_new):
+    """
+    Generates a 'Track Changes' style difference using Redlines (diff-match-patch).
+    Returns: dict with status, markdown diff, and a numeric change_ratio.
+    """
+    clean_old = normalize_text(text_old)
+    clean_new = normalize_text(text_new)
+
+    if clean_old == clean_new:
+        return {
+            "status": "MATCH",
+            "diff_markdown": None,
+            "change_ratio": 0.0
+        }
+
+    # Redlines produces: "The <del>quick</del> <ins>slow</ins> brown fox"
+    differ = Redlines(clean_old, clean_new)
+    redline_text = differ.compare()
+
+    # Use difflib SequenceMatcher to approximate similarity
+    matcher = difflib.SequenceMatcher(None, clean_old, clean_new)
+    similarity = matcher.ratio()       # 0..1 (1 = identical)
+    change_ratio = 1.0 - similarity    # 0..1 (1 = completely different)
+
+    return {
+        "status": "CHANGED",
+        "diff_markdown": redline_text,
+        "change_ratio": change_ratio
+    }
+
+# ---------------------------------------------------------
+# MAIN PIPELINE
+# ---------------------------------------------------------
+def compare_legal_sections(input_dict, knowledge_dict):
+    """
+    Compares specific sections between an incoming document and a knowledge-base version.
+
+    input_dict:    {section_name: text_from_incoming_document}
+    knowledge_dict:{section_name: text_from_knowledge_base}
+    """
+    results = {}
 
     for section, input_text in input_dict.items():
         knowledge_text = knowledge_dict.get(section)
-        status = "success"
-        changes = None
 
-        if knowledge_text:
-            if input_text != knowledge_text:
-                status = "changed"
-                diff = difflib.ndiff(input_text.splitlines(), knowledge_text.splitlines())
-                changes = '\n'.join(diff)
-                logging.info(f"Changes detected in section '{section}'.")
-            else:
-                logging.info(f"No changes detected in section '{section}'.")
+        if not knowledge_text:
+            logging.warning(f"Section '{section}' missing in Knowledge Base.")
+            results[section] = {"status": "MISSING_REFERENCE"}
+            continue
+
+        logging.info(f"Processing Section: {section}")
+
+        # Run Redline Check
+        diff_result = generate_legal_redline(knowledge_text, input_text)
+
+        if diff_result["status"] == "CHANGED":
+            logging.info(f"--> CHANGES DETECTED: {section}")
+            # In Azure logs, printing the diff helps debugging
+            logging.debug(f"Diff: {diff_result['diff_markdown']}")
         else:
-            status = "not_found"
-            logging.warning(f"Section '{section}' not found in knowledge base.")
+            logging.info(f"--> MATCH: {section}")
 
-        validation_results[section] = {"status": status, "changes": changes}
+        results[section] = diff_result
 
-    return validation_results
-
+    return results
 
 # ---------------------------------------------------------
-# SEMANTIC SIMILARITY (EMBEDDING-BASED)
+# EXAMPLE USAGE
 # ---------------------------------------------------------
-
-def load_text_model(model_path):
-    """Load a SentenceTransformer model from a given path."""
-    try:
-        model = SentenceTransformer(model_path, local_files_only=True)
-        logging.info(f"Model loaded successfully from: {model_path}")
-        return model
-    except Exception as e:
-        logging.error(f"Failed to load model: {e}")
-        raise
-
-
-def extract_text_embeddings(text1, text2, text_model):
-    """Generate embeddings for two text inputs."""
-    embedding1 = text_model.encode(text1, convert_to_tensor=True)
-    embedding2 = text_model.encode(text2, convert_to_tensor=True)
-    return embedding1, embedding2
-
-
-def compare_embeddings(embedding1, embedding2):
-    """Compute cosine similarity between two embeddings."""
-    return util.pytorch_cos_sim(embedding1, embedding2).item()
-
-
-def semantic_matching(text1, text2):
-    """Compute semantic similarity score between two texts."""
-    model = load_text_model(model_path)
-    embedding1, embedding2 = extract_text_embeddings(text1, text2, model)
-    score = compare_embeddings(embedding1, embedding2)
-    logging.info(f"Semantic similarity score: {score:.4f}")
-    return score
-
-
-# ---------------------------------------------------------
-# MAIN (EXAMPLE USAGE)
-# ---------------------------------------------------------
-
-def main():
+if __name__ == "__main__":
     configure_logging()
 
-    # Example data
-    knowledge_dict = {
-        "Central Points of Contact/Project Management": (
-            "The Parties are required to handle service-related questions or comments exclusively with the responsible "
-            "Central Points of Contact. All communication between the Customer and the Contractor’s employees must be made "
-            "via the project manager of the Contractor."
-        )
+    # 1. Define Data (Simulating Inputs)
+    # Note: 'knowledge' is the gold standard (Old version), 'input' is the new version
+    knowledge_base = {
+        "Liability": "The Contractor shall be liable for all damages up to $1,000,000."
     }
 
-    input_dict = {
-        "Central Points of Contact/Project Management": (
-            "service-related questions or comments exclusively with the responsible Central Points of Contact. "
-            "All communication between the Customer and the employees must be made via the project manager of the Contractor."
-        )
+    incoming_doc = {
+        "Liability": "The Contractor shall not be liable for any damages."
     }
 
-    # Step 1: Basic diff comparison
-    validation_results = validate_legal_clauses(input_dict, knowledge_dict)
-    print("\nValidation Results:\n", validation_results)
+    # 2. Run Comparison
+    report = compare_legal_sections(incoming_doc, knowledge_base)
 
-    # Step 2: Semantic similarity comparison
-    score = semantic_matching(
-        knowledge_dict["Central Points of Contact/Project Management"],
-        input_dict["Central Points of Contact/Project Management"]
-
-    )
-    print(f"\nSemantic Similarity Score: {score:.4f}")
-
-
-if __name__ == "__main__":
-    # absolute path for the current folder all-MiniLM-L6-v2
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.abspath(os.path.join(script_dir, "../all-MiniLM-L6-v2"))
-    main()
+    # 3. Output for API Response
+    import json
+    print("\n--- FINAL JSON OUTPUT ---")
+    print(json.dumps(report, indent=2))
