@@ -1,0 +1,13 @@
+PS C:\Users\FPNUYEK\OneDrive - Allianz\Documents> python legal-lexical-validation.py
+2025-11-28 11:13:36,703 - INFO - - Processing Section: Liability
+2025-11-28 11:13:36,703 - INFO - - --> CHANGES DETECTED: Liability
+ 
+--- FINAL JSON OUTPUT ---
+{
+  "Liability": {
+    "status": "CHANGED",
+    "diff_markdown": "The Contractor shall <span style='color:green;font-weight:700;'>not </span>be liable for <span style='color:red;font-weight:700;text-decoration:line-through;'>all damages up to $1,000,000.</span><span style='color:green;font-weight:700;'>any damages.</span>",
+    "change_ratio": 0.21739130434782605
+  }
+}
+PS C:\Users\FPNUYEK\OneDrive - Allianz\Documents>
