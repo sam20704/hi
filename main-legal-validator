@@ -1,0 +1,60 @@
+
+<!DOCTYPE html>
+<html
+  lang="en"
+  
+  data-color-mode="auto" data-light-theme="light" data-dark-theme="dark"
+  data-a11y-animated-images="system" data-a11y-link-underlines="true"
+  >
+
+
+  <head>
+    <meta charset="utf-8">
+
+  <title>Initiating SAML single sign-on</title>
+  <meta http-equiv="refresh" content="0;url=https://login.microsoftonline.com/6e06e42d-6925-47c6-b9e7-9581c7ca302a/saml2?RelayState=_M_nQ1FnIpL40hi32RN7xAXreEv_gERp9Em4e4mw45v_gxUNc6UatNG8vZJNFQ91w1uqHPmdOa5cZGAISkEdbu_5iLen_4_bMO-dFHFC_Zw&amp;SAMLRequest=jZLBbtswEETv%2BQqBd0kULckSYTtQYgQ1kMZG7PbQS0BRS5sARbok5bb5%2BtKKgwYIEvTI5cxi3u7Orn%2F3KjqBddLoOcoSjK4XVzPHenWkzeAP%2BhF%2BDuB8FHTa0fFjjgarqWFOOqpZD456TrfN13tKEkyP1njDjUJvLJ87mHNgfQiAotVyjp4qIqY5Bl5VDBc4vAoCXVXwKRelqAmwti7ytqoE6aaCZCwXxQQXVQETRqo2q0Mb5wZYaeeZ9nNEMCnijMSY7HBJCaZk8gNF31%2BhQwQULQOj1MyPlYP3R0fTVJm91EkvuTXOCG%2B0khoSbvq0BFxCTrq4rEPvfMrLuK1hGtdFlYWcbIIJS8%2Fk5BxmEwjlCeZIMOUARZvLiG6k7qTefz6d9kXk6JfdbhNv1tsdiprXid0a7YYe7BbsSXL49nj%2FL%2F1e%2BsPQJh2cQJkj2IQpJZl%2BTqQZo6X8xYwW477pODS7%2BA%2F7LH1ruFzLQ0i%2BWm6MkvxP1Chlft1aYD5QezsE6Dtje%2BY%2FZs2SbKzILhajlA7aHYFLIaFD6SVkAO7kmdxFD8bfQJDCRxsOgrVe20Z4sO80xagJbdP3x764%2Bgs%3D&amp;SigAlg=http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256&amp;Signature=bBm3Bc%2FynCjk2CwZv6etM3z0HBlOG1Csq71EwhQzUGYm4P589QyS5rrCWa%2B7P1FhX13einN7F%2FkTiw7f2uR9FhiyZxGuthF8F3SjemO7uGTmFN9XiokwegACFDHNd7jWeg1kkmCry3haCYu2hEoW0AmNV32%2F8v4AvbOVtizXb1KwOVBcJiGJgypIODIEKGBgVgLooooWNEueljDXPuaF3LqEeiMNXl2Zvs2uI2%2F1%2F5m4pdTU2QvKL0%2BPCsSs2tZrBBAgeo%2FaUn0h2zBL7QX18Pq6%2FY8EGSEm%2BAMf3VqrxyxcBTTg0L%2B3rGMrvLe8jiOCqkQyM3mp2CkdlT%2FUOcIlBwEDjL2ynZRVioMRawly2ni6hgGotfJJaKvD3GDstXx7L6QaZxDfqn8bLxgqv8dYAUa2paTSlDaAqPAgT7oOz8mTzRzyl8m%2B7BVScGDgl%2BPPFoIdzqv1WKzAb8s785RuM8eHEbI3BogMJW%2BXf2sBlPgAkmFF2DkyUpa%2FphTPiOp8b9NBp1TLWHU3k7bOkWyGStQBK7bP1S8QazQEvzzGVHeeVInT8vdvk7kPHsZJeTkFyP366f63lp7zGss7AuJzGokgBwqdVrwF4kEHU8MLPg1Z4Te%2FiIeBbSJ4LyOO9UA46DtZcccko6%2BFsi%2BzCOAtYhV5gkpEbi0ab0jG50TmFDk%3D" data-url="https://login.microsoftonline.com/6e06e42d-6925-47c6-b9e7-9581c7ca302a/saml2?RelayState=_M_nQ1FnIpL40hi32RN7xAXreEv_gERp9Em4e4mw45v_gxUNc6UatNG8vZJNFQ91w1uqHPmdOa5cZGAISkEdbu_5iLen_4_bMO-dFHFC_Zw&amp;SAMLRequest=jZLBbtswEETv%2BQqBd0kULckSYTtQYgQ1kMZG7PbQS0BRS5sARbok5bb5%2BtKKgwYIEvTI5cxi3u7Orn%2F3KjqBddLoOcoSjK4XVzPHenWkzeAP%2BhF%2BDuB8FHTa0fFjjgarqWFOOqpZD456TrfN13tKEkyP1njDjUJvLJ87mHNgfQiAotVyjp4qIqY5Bl5VDBc4vAoCXVXwKRelqAmwti7ytqoE6aaCZCwXxQQXVQETRqo2q0Mb5wZYaeeZ9nNEMCnijMSY7HBJCaZk8gNF31%2BhQwQULQOj1MyPlYP3R0fTVJm91EkvuTXOCG%2B0khoSbvq0BFxCTrq4rEPvfMrLuK1hGtdFlYWcbIIJS8%2Fk5BxmEwjlCeZIMOUARZvLiG6k7qTefz6d9kXk6JfdbhNv1tsdiprXid0a7YYe7BbsSXL49nj%2FL%2F1e%2BsPQJh2cQJkj2IQpJZl%2BTqQZo6X8xYwW477pODS7%2BA%2F7LH1ruFzLQ0i%2BWm6MkvxP1Chlft1aYD5QezsE6Dtje%2BY%2FZs2SbKzILhajlA7aHYFLIaFD6SVkAO7kmdxFD8bfQJDCRxsOgrVe20Z4sO80xagJbdP3x764%2Bgs%3D&amp;SigAlg=http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256&amp;Signature=bBm3Bc%2FynCjk2CwZv6etM3z0HBlOG1Csq71EwhQzUGYm4P589QyS5rrCWa%2B7P1FhX13einN7F%2FkTiw7f2uR9FhiyZxGuthF8F3SjemO7uGTmFN9XiokwegACFDHNd7jWeg1kkmCry3haCYu2hEoW0AmNV32%2F8v4AvbOVtizXb1KwOVBcJiGJgypIODIEKGBgVgLooooWNEueljDXPuaF3LqEeiMNXl2Zvs2uI2%2F1%2F5m4pdTU2QvKL0%2BPCsSs2tZrBBAgeo%2FaUn0h2zBL7QX18Pq6%2FY8EGSEm%2BAMf3VqrxyxcBTTg0L%2B3rGMrvLe8jiOCqkQyM3mp2CkdlT%2FUOcIlBwEDjL2ynZRVioMRawly2ni6hgGotfJJaKvD3GDstXx7L6QaZxDfqn8bLxgqv8dYAUa2paTSlDaAqPAgT7oOz8mTzRzyl8m%2B7BVScGDgl%2BPPFoIdzqv1WKzAb8s785RuM8eHEbI3BogMJW%2BXf2sBlPgAkmFF2DkyUpa%2FphTPiOp8b9NBp1TLWHU3k7bOkWyGStQBK7bP1S8QazQEvzzGVHeeVInT8vdvk7kPHsZJeTkFyP366f63lp7zGss7AuJzGokgBwqdVrwF4kEHU8MLPg1Z4Te%2FiIeBbSJ4LyOO9UA46DtZcccko6%2BFsi%2BzCOAtYhV5gkpEbi0ab0jG50TmFDk%3D">
+  <meta name="viewport" content="width=device-width">
+  <link crossorigin="use-credentials" media="all" rel="stylesheet" href="https://github.developer.allianz.io/assets/light-f552bab6ce72.css" /><link crossorigin="use-credentials" media="all" rel="stylesheet" href="https://github.developer.allianz.io/assets/dark-4589f64a2275.css" /><link data-color-theme="dark_dimmed" crossorigin="use-credentials" media="all" rel="stylesheet" data-href="https://github.developer.allianz.io/assets/dark_dimmed-a7246d2d6733.css" /><link data-color-theme="dark_high_contrast" crossorigin="use-credentials" media="all" rel="stylesheet" data-href="https://github.developer.allianz.io/assets/dark_high_contrast-f2ef05cef2f1.css" /><link data-color-theme="dark_colorblind" crossorigin="use-credentials" media="all" rel="stylesheet" data-href="https://github.developer.allianz.io/assets/dark_colorblind-daa1fe317131.css" /><link data-color-theme="light_colorblind" crossorigin="use-credentials" media="all" rel="stylesheet" data-href="https://github.developer.allianz.io/assets/light_colorblind-1ab6fcc64845.css" /><link data-color-theme="light_high_contrast" crossorigin="use-credentials" media="all" rel="stylesheet" data-href="https://github.developer.allianz.io/assets/light_high_contrast-46de871e876c.css" /><link data-color-theme="light_tritanopia" crossorigin="use-credentials" media="all" rel="stylesheet" data-href="https://github.developer.allianz.io/assets/light_tritanopia-c9754fef2a31.css" /><link data-color-theme="dark_tritanopia" crossorigin="use-credentials" media="all" rel="stylesheet" data-href="https://github.developer.allianz.io/assets/dark_tritanopia-dba748981a29.css" />
+  <link crossorigin="use-credentials" media="all" rel="stylesheet" href="https://github.developer.allianz.io/assets/primer-87f353b17355.css" />
+  <link crossorigin="use-credentials" media="all" rel="stylesheet" href="https://github.developer.allianz.io/assets/global-3bc9106fb3ff.css" />
+
+
+
+  <link rel="mask-icon" href="https://github.developer.allianz.io/assets/pinned-octocat-093da3e6fa40.svg" color="#000000">
+  <link rel="alternate icon" class="js-site-favicon" type="image/png" href="https://github.developer.allianz.io/favicons/favicon-ent.png">
+  <link rel="icon" class="js-site-favicon" type="image/svg+xml" href="https://github.developer.allianz.io/favicons/favicon-ent.svg">
+
+<meta name="theme-color" content="#1e2327">
+<meta name="color-scheme" content="light dark" />
+
+  <meta name="msapplication-TileImage" content="/windows-tile.png">
+  <meta name="msapplication-TileColor" content="#ffffff">
+
+  <link rel="manifest" href="/manifest.json" crossOrigin="use-credentials">
+
+  </head>
+
+  <body  style="word-wrap: break-word;">
+    <div data-turbo-body  style="word-wrap: break-word;">
+      
+  
+<div class="container-md px-3">
+  <div data-view-component="true" class="blankslate mt-5">
+    <svg aria-hidden="true" height="24" viewBox="0 0 24 24" version="1.1" width="24" data-view-component="true" class="octicon octicon-shield-lock blankslate-icon">
+    <path d="M11.46 1.137a1.748 1.748 0 0 1 1.08 0l8.25 2.675A1.75 1.75 0 0 1 22 5.476V10.5c0 6.19-3.77 10.705-9.401 12.83a1.704 1.704 0 0 1-1.198 0C5.771 21.204 2 16.69 2 10.5V5.476c0-.76.49-1.43 1.21-1.664Zm.617 1.426a.253.253 0 0 0-.154 0L3.673 5.24a.25.25 0 0 0-.173.237V10.5c0 5.461 3.28 9.483 8.43 11.426a.199.199 0 0 0 .14 0c5.15-1.943 8.43-5.965 8.43-11.426V5.476a.25.25 0 0 0-.173-.237ZM13 12.232V15a1 1 0 0 1-2 0v-2.768a2 2 0 1 1 2 0Z"></path>
+</svg>
+    <h3 data-view-component="true" class="mb-1">You are being redirected to your identity provider in order to authenticate.</h3>
+  
+    <p>
+      If your browser does not redirect you back, please <a id="redirect" aria-label="click here to redirect you back" class="Link--inTextBlock" href="https://login.microsoftonline.com/6e06e42d-6925-47c6-b9e7-9581c7ca302a/saml2?RelayState=_M_nQ1FnIpL40hi32RN7xAXreEv_gERp9Em4e4mw45v_gxUNc6UatNG8vZJNFQ91w1uqHPmdOa5cZGAISkEdbu_5iLen_4_bMO-dFHFC_Zw&amp;SAMLRequest=jZLBbtswEETv%2BQqBd0kULckSYTtQYgQ1kMZG7PbQS0BRS5sARbok5bb5%2BtKKgwYIEvTI5cxi3u7Orn%2F3KjqBddLoOcoSjK4XVzPHenWkzeAP%2BhF%2BDuB8FHTa0fFjjgarqWFOOqpZD456TrfN13tKEkyP1njDjUJvLJ87mHNgfQiAotVyjp4qIqY5Bl5VDBc4vAoCXVXwKRelqAmwti7ytqoE6aaCZCwXxQQXVQETRqo2q0Mb5wZYaeeZ9nNEMCnijMSY7HBJCaZk8gNF31%2BhQwQULQOj1MyPlYP3R0fTVJm91EkvuTXOCG%2B0khoSbvq0BFxCTrq4rEPvfMrLuK1hGtdFlYWcbIIJS8%2Fk5BxmEwjlCeZIMOUARZvLiG6k7qTefz6d9kXk6JfdbhNv1tsdiprXid0a7YYe7BbsSXL49nj%2FL%2F1e%2BsPQJh2cQJkj2IQpJZl%2BTqQZo6X8xYwW477pODS7%2BA%2F7LH1ruFzLQ0i%2BWm6MkvxP1Chlft1aYD5QezsE6Dtje%2BY%2FZs2SbKzILhajlA7aHYFLIaFD6SVkAO7kmdxFD8bfQJDCRxsOgrVe20Z4sO80xagJbdP3x764%2Bgs%3D&amp;SigAlg=http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256&amp;Signature=bBm3Bc%2FynCjk2CwZv6etM3z0HBlOG1Csq71EwhQzUGYm4P589QyS5rrCWa%2B7P1FhX13einN7F%2FkTiw7f2uR9FhiyZxGuthF8F3SjemO7uGTmFN9XiokwegACFDHNd7jWeg1kkmCry3haCYu2hEoW0AmNV32%2F8v4AvbOVtizXb1KwOVBcJiGJgypIODIEKGBgVgLooooWNEueljDXPuaF3LqEeiMNXl2Zvs2uI2%2F1%2F5m4pdTU2QvKL0%2BPCsSs2tZrBBAgeo%2FaUn0h2zBL7QX18Pq6%2FY8EGSEm%2BAMf3VqrxyxcBTTg0L%2B3rGMrvLe8jiOCqkQyM3mp2CkdlT%2FUOcIlBwEDjL2ynZRVioMRawly2ni6hgGotfJJaKvD3GDstXx7L6QaZxDfqn8bLxgqv8dYAUa2paTSlDaAqPAgT7oOz8mTzRzyl8m%2B7BVScGDgl%2BPPFoIdzqv1WKzAb8s785RuM8eHEbI3BogMJW%2BXf2sBlPgAkmFF2DkyUpa%2FphTPiOp8b9NBp1TLWHU3k7bOkWyGStQBK7bP1S8QazQEvzzGVHeeVInT8vdvk7kPHsZJeTkFyP366f63lp7zGss7AuJzGokgBwqdVrwF4kEHU8MLPg1Z4Te%2FiIeBbSJ4LyOO9UA46DtZcccko6%2BFsi%2BzCOAtYhV5gkpEbi0ab0jG50TmFDk%3D">click here</a> to continue.
+    </p>
+
+</div></div>
+
+
+    </div>
+
+    <div id="js-global-screen-reader-notice" class="sr-only" aria-live="polite" aria-atomic="true" ></div>
+    <div id="js-global-screen-reader-notice-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+  </body>
+</html>
