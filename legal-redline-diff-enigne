@@ -3,25 +3,26 @@
 import logging
 import re
 import difflib
-from pathlib import Path
-from redlines import Redlines  
+import json
+from typing import Dict, Optional, Any
+from redlines import Redlines
 
 # CONFIGURATION
 def configure_logging(level=logging.INFO):
-    """Configure logging to standard Azure stdout format."""
+    """Configure logging to standard stdout format."""
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(levelname)s - - %(message)s"
     )
 
 
-# Normalization
+# NORMALIZATION
 def normalize_text(text: str) -> str:
-    
-    # Normalizes legal text to ensure 'visual' differences aren't flagged.
-    # Unifies whitespace (tabs to spaces).
-    # Standardizes quotes (curly to straight).
-    
+    """
+    Normalizes legal text so that visual differences aren't flagged.
+    - Unifies whitespace (tabs to spaces)
+    - Standardizes quotes (curly to straight)
+    """
     if not text:
         return ""
     text = text.replace("“", '"').replace("”", '"').replace("’", "'")
@@ -29,12 +30,17 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 
-
+# LOW-LEVEL STRING COMPARATOR
 def generate_legal_redline(reference_text: str, incoming_text: str) -> dict:
-    
-    # Generates a 'Track Changes' style difference using Redlines (diff-match-patch).
-    #Returns: dict with status, markdown diff, and a numeric change_ratio.
-    
+    """
+    Compare two strings and produce a redline diff using Redlines.
+    Returns dict:
+      {
+        "status": "MATCH"|"CHANGED",
+        "diff_markdown": "<del>..</del><ins>..</ins>" | None,
+        "change_ratio": float
+      }
+    """
     clean_old = normalize_text(reference_text)
     clean_new = normalize_text(incoming_text)
 
@@ -45,14 +51,12 @@ def generate_legal_redline(reference_text: str, incoming_text: str) -> dict:
             "change_ratio": 0.0
         }
 
-    
     differ = Redlines(clean_old, clean_new)
     redline_text = differ.compare()
 
-    # Use difflib SequenceMatcher to approximate similarity
     matcher = difflib.SequenceMatcher(None, clean_old, clean_new)
-    similarity = matcher.ratio()       # 0..1 (1 = identical)
-    change_ratio = 1.0 - similarity    # 0..1 (1 = completely different)
+    similarity = matcher.ratio()
+    change_ratio = 1.0 - similarity
 
     return {
         "status": "CHANGED",
@@ -60,12 +64,102 @@ def generate_legal_redline(reference_text: str, incoming_text: str) -> dict:
         "change_ratio": change_ratio
     }
 
-def get_legal_redline_for_document(document_text: str) -> dict:
-    configure_logging()
-    #replace this with real template text/ section-level-logic
-    reference_text = (
-        #example : The Contractor shall be liable for all damages up to $1,000,000
-    )
-    diff_result = generate_legal_redline(reference_text, document_text)
 
-    return diff_result
+# KNOWLEDGE BASE LOADING
+def load_knowledge_base(path: Optional[str] = None) -> Dict[str, str]:
+    """
+    Load section -> template text mapping.
+    If path is provided and exists, load JSON from it (expected {section: text}).
+    Otherwise return a small default dictionary (replace with your real templates).
+    """
+    if path:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if isinstance(data, dict):
+                return {k: str(v) for k, v in data.items()}
+        except Exception as e:
+            logging.error(f"Failed to load knowledge base from {path}: {e}")
+
+    # fallback default (replace with your real templates / DB fetch)
+    default = {
+        "Liability": "The Contractor shall be liable for all damages up to $1,000,000.",
+        "Payment Terms": "The Client shall pay the Contractor within 30 days of invoice.",
+    }
+    return default
+
+
+# HIGH-LEVEL ENTRY POINT (section-wise comparison) — NO HTML WRITING
+def get_legal_redline_for_document(
+    document_text: str,
+    extracted_sections: Optional[Dict[str, str]] = None,
+    knowledge_base: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
+    """
+    Compare the incoming document against a knowledge_base (section -> reference text).
+    - extracted_sections: optional dict mapping section_name -> text extracted from the uploaded doc.
+      If not provided, the engine will compare each reference section to the full document_text.
+    - knowledge_base: optional dict mapping section_name -> reference text. If not provided, loaded from defaults.
+
+    Returns:
+      {
+        "<section>": { "status": ..., "diff_markdown": ..., "change_ratio": ..., "matched_input_section": "<name>", "reference_len": int, "input_len": int }
+        ...
+      }
+    """
+    configure_logging()
+
+    # 1. Ensure knowledge base exists
+    kb = knowledge_base or load_knowledge_base()
+
+    # 2. Normalize extracted_sections into a usable mapping
+    extracted: Dict[str, str] = {}
+    if isinstance(extracted_sections, dict) and extracted_sections:
+        if "sections" in extracted_sections and isinstance(extracted_sections["sections"], dict):
+            extracted = {k: str(v) for k, v in extracted_sections["sections"].items()}
+        else:
+            # treat as direct mapping section->text
+            extracted = {k: str(v) for k, v in extracted_sections.items()}
+    else:
+        # fallback: treat entire document as single "Full Document" section
+        extracted = {"Full Document": document_text}
+
+    results: Dict[str, Any] = {}
+
+    # 3. For each reference section, try to find matching extracted text
+    for section_name, ref_text in kb.items():
+        # best match: direct key match
+        input_text: Optional[str] = None
+        matched_input_section: Optional[str] = None
+
+        if section_name in extracted:
+            input_text = extracted[section_name]
+            matched_input_section = section_name
+        else:
+            # fallback strategies: case-insensitive key match
+            for k in extracted.keys():
+                if k.lower() == section_name.lower():
+                    input_text = extracted[k]
+                    matched_input_section = k
+                    break
+
+        if input_text is None:
+            # As last resort compare the whole document
+            input_text = document_text
+            matched_input_section = "Full Document"
+
+        # 4. Run the low-level redline comparator
+        try:
+            diff_result = generate_legal_redline(ref_text, input_text)
+        except Exception as e:
+            logging.exception(f"Redline comparison failed for section '{section_name}': {e}")
+            diff_result = {"status": "ERROR", "diff_markdown": None, "change_ratio": 1.0}
+
+        # Attach metadata
+        diff_result["matched_input_section"] = matched_input_section
+        diff_result["reference_len"] = len(str(ref_text))
+        diff_result["input_len"] = len(str(input_text))
+
+        results[section_name] = diff_result
+
+    return results
