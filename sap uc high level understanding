@@ -1,0 +1,13 @@
+SAP Use Case Case 1: Query related to procurement and payment. queries like invoice submission, payment suppliers, detailed response with Date, Document (Invoice) number. Right now, the overall system is in SAP.
+
+Approach:
+
+Chatbot :
+
+1. Seamless SAP Integration: The chatbot connects directly with SAP Database, allowing users to easily access information related to procurement, payments, purchase orders, and requisitions through simple queries.
+
+2. Efficient Data Handling: A middleware server, known as the Model Control Protocol (MCP), facilitates communication between the chatbot and SAP, ensuring efficient data retrieval and exchange.
+
+3. Intuitive User Experience: The chatbot delivers clear, actionable insights by interpreting the data and applying business logic, making complex SAP interactions straightforward and enhancing operational efficiency.
+
+Process flow: User initiates query -> secure sap DB access using mcp ->data retrieval and processing -> actionable response to the user
