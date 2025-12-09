@@ -33,3 +33,39 @@
 ┌──────────────────┐
 │   SAP Backend    │
 └──────────────────┘
+
+
+Presentation Layer: React UI
+Gateway Layer: Agentic API (FastAPI)
+Orchestration Layer: LangGraph Agent (Planner → Router → Tool Executor → Answer)
+Connectivity Layer: MCP SAP Server
+Data Layer: SAP S/4HANA / HANA Cloud
+
+Component	Role & Responsibility
+React UI	Handles user interaction; renders natural language responses and structured data tables.
+FastAPI Middleware	Manages session state, authentication, and API routing to the agent.
+LangGraph Agent	The central "brain" responsible for reasoning, planning, and orchestrating the workflow.
+MCP SAP Server	Exposes SAP operations (e.g., search_invoices) as typed tools for the agent.
+SAP Backend	The System of Record (SoR) containing invoices, POs, and vendor data.
+
+
+End-to-End Workflow Scenario
+User Query: "What is the status of the invoice submitted by Acme Corp last week?"
+
+Step 1: Request Initiation
+React → API: The message is sent via HTTPS with a secure session_id.
+API → LangGraph: The session is loaded, and the graph execution begins.
+Step 2: Planning & Routing
+Planner Node: Decomposes the request.
+Intent: Check Invoice Status.
+Parameters: Vendor = "Acme Corp"; Timeframe = [Calculated Date Range].
+Router Node: Selects the appropriate tool: search_invoices.
+Step 3: Execution
+Tool Executor → MCP → SAP: The agent executes the tool. The MCP server queries SAP S/4HANA and returns the specific invoice record.
+Step 4: Context Update
+Memory: The system updates the state variables:
+last_invoice_id: [12345]
+last_supplier: [Acme Corp]
+Step 5: Response Generation
+Answer Node: Generates the final output containing a summary text and a JSON object for the invoice table.
+API → React: The UI renders the text and the data grid.
