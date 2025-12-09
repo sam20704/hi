@@ -1,0 +1,251 @@
+🚀 Agentic SAP Procurement Assistant
+High-Level Architecture & Approach (LangGraph + MCP + SAP S/4HANA)
+
+This repository describes how we architect an Agentic Middleware API that connects a React Frontend with SAP Procurement data using LangGraph, Agentic APIs, and MCP (Model Context Protocol).
+
+The goal is to provide:
+
+Natural-language SAP procurement query handling
+
+Accurate, tool-grounded responses based strictly on SAP data
+
+Multi-step reasoning and secure tool execution
+
+Zero-hallucination enterprise reliability
+
+Scalable, production-ready design
+
+🧠 1. What We Are Building
+
+We are not building a “chatbot”.
+
+We are building a secure Agentic Middleware API that:
+
+Accepts human questions (e.g., “Status of Acme Corp’s invoice from last week?”)
+
+Uses LangGraph to reason, plan, and choose SAP tools
+
+Calls SAP via MCP server tools (search_invoices, get_invoice_status, etc.)
+
+Returns:
+
+✔ Natural-language explanations
+
+✔ Structured JSON for UI tables
+
+Remembers context across turns
+
+Enforces enterprise-grade authorization and auditability
+
+🏛 2. Core System Architecture
+High-Level Layers
+React UI
+   ↓
+Agentic API (FastAPI)
+   ↓
+LangGraph Agent (Planner → Router → Tool Executor → Answer)
+   ↓
+MCP SAP Server (tools)
+   ↓
+SAP S/4HANA / HANA Cloud
+
+Component Summary
+Layer	Role
+React UI	Sends queries & renders results (NL + tables)
+FastAPI Agentic Middleware	Auth, session mgmt, calls LangGraph
+LangGraph Agent	Central “brain” orchestrating planning, tool selection, execution
+MCP SAP Server	Exposes SAP operations as typed tools
+SAP Backend	Source of truth for invoices, POs, vendors
+🧩 3. LangGraph Agent – How It Thinks
+
+The agent is modeled as a graph, not a linear chain.
+Each node has a single, clear responsibility.
+
+Agent Node Overview
+ENTRY → PLANNER? → ROUTER → TOOL EXECUTOR → ANSWER → END
+
+1. ENTRY Node
+
+Pulls session state (history, last invoice ID, etc.)
+
+Adds new user message
+
+2. PLANNER Node (used for multi-step tasks)
+
+Converts vague user intent into a structured plan
+Example: “last week” → date range
+
+Defines steps: search → pick invoice → get status
+
+Uses a reasoning model (e.g., OpenAI o1)
+
+3. ROUTER Node
+
+Analyzes question + plan + tool schemas
+
+Selects correct SAP MCP tool
+
+Example: search_invoices(vendor="Acme Corp", date_range=...)
+
+4. TOOL EXECUTOR
+
+Executes chosen tool via MCP SAP Server
+
+MCP handles SAP connectivity + authorization
+
+Returns factual SAP data only
+
+5. ANSWER Node
+
+Converts SAP results into:
+
+Human-friendly answer
+
+Structured JSON (for tables/cards)
+
+Ensures no hallucinated numbers or IDs
+
+🔁 4. End-to-End Flow Example
+
+User asks:
+
+“What is the status of the invoice submitted by Acme Corp last week?”
+
+Flow:
+
+React → API
+Message sent with session_id.
+
+API → LangGraph
+Session is loaded; orchestration begins.
+
+Planner Node
+Determines task:
+
+Resolve date range
+
+Search invoices
+
+Fetch status
+
+Router Node
+Chooses tool:
+search_invoices("Acme Corp", date_from, date_to)
+
+Tool Executor Node → MCP → SAP
+SAP returns actual invoice data.
+
+Memory Update
+Stores last_invoice_id, last_supplier.
+
+Answer Node
+Returns:
+
+Natural language summary
+
+Table JSON for UI
+
+API → React
+UI renders NL + table.
+
+🧠 5. Memory & Context (Follow-up Questions)
+
+We store context in:
+
+LangGraph state (per run)
+
+last_invoice_id
+
+last_supplier
+
+plan steps
+
+Redis/Postgres (per session)
+
+conversation history
+
+last search results
+
+This enables natural follow-ups:
+
+“Show me the PDF for that invoice.”
+
+Agent uses last_invoice_id → calls get_invoice_pdf.
+
+🔐 6. Security, Compliance & Governance
+Key Enterprise Safeguards
+
+Tool-only data:
+All financial data must come from SAP tools, not LLM guesses.
+
+Authorization:
+SAP access uses MCP + role-based filtering.
+
+Audit logs:
+Record:
+
+User prompt
+
+Plan
+
+Tool calls
+
+Tool outputs
+
+Final answer
+
+No hallucinations:
+Numeric fields are copied verbatim from SAP responses.
+
+📊 7. High-Level Diagram (Simplified)
+┌──────────────────┐
+│    React UI      │
+└─────────┬────────┘
+          │ message
+          ▼
+┌──────────────────┐
+│  Agentic API     │
+│  (FastAPI)       │
+└─────────┬────────┘
+          │ state
+          ▼
+┌──────────────────┐
+│   LangGraph      │
+│ ┌──────────────┐ │
+│ │  Planner     │ │
+│ └──────┬───────┘ │
+│        ▼         │
+│   ┌──────────┐   │
+│   │ Router   │   │
+│   └────┬─────┘   │
+│        ▼         │
+│ ┌──────────────┐ │
+│ │ Tool Exec    │ │
+│ └────┬─────────┘ │
+│      ▼           │
+│   Answer Node    │
+└─────────┬────────┘
+          ▼
+┌──────────────────┐
+│  MCP SAP Server  │
+└─────────┬────────┘
+          ▼
+┌──────────────────┐
+│   SAP Backend    │
+└──────────────────┘
+
+✅ 8. Summary
+
+This architecture ensures:
+
+Reliable SAP-grounded answers (no hallucination risk)
+
+Multi-step reasoning using planning + tool execution
+
+Enterprise-grade security with MCP boundaries
+
+Full auditability of every step
+
+Scalable design ready for production environments
+
+The combination of LangGraph + MCP + SAP S/4HANA represents the state-of-the-art enterprise agentic stack in 2025.
