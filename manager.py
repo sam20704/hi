@@ -17,7 +17,7 @@ class DisplayManager:
             st.warning("⚠️ File size exceeds 50 MB. Processing may take longer.")
 
     @staticmethod
-    def show_processing_stats(extraction_time: float, analysis_time: float, page_count: int, processed_time: str,usage_stats: str) -> None:
+    def show_processing_stats(extraction_time: float, analysis_time: float, page_count: int, processed_time: str, usage_stats: dict) -> None:
         st.sidebar.subheader("📊 Processing Statistics")
         col1, col2 = st.sidebar.columns(2)
         with col1:
@@ -31,11 +31,11 @@ class DisplayManager:
         st.sidebar.subheader("🧮 Token Usage")
         col1, col2, col3 = st.sidebar.columns(3)
         with col1:
-            st.metric("Input Tokens",usage_stats.get("prompt_tokens",0))
+            st.metric("Input Tokens", usage_stats.get("prompt_tokens", 0))
         with col2:
-            st.metric("Output Tokens",usage_stats.get("completion_tokens",0))
+            st.metric("Output Tokens", usage_stats.get("completion_tokens", 0))
         with col3:
-            st.metric("Total Tokens",usage_stats.get("total_tokens",0))
+            st.metric("Total Tokens", usage_stats.get("total_tokens", 0))
 
     @staticmethod
     def show_results(result: Dict[str, Any]) -> None:
@@ -67,40 +67,41 @@ class DisplayManager:
                 st.write(f"Address: {supplier.get('address', 'N/A')}")
                 status = supplier.get("validation_status", "N/A")
                 st.markdown(f"Status: <span class='{get_status_style(status)}'>{status}</span>", unsafe_allow_html=True)
+
         # Customer Contact
         with st.expander("👤 Customer Contact", expanded=True):
             customer = result.get("customer_contact", {})
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.write(f"**Surname:** {customer.get('Surname', 'N/A')}")
                 st.write(f"**First Name:** {customer.get('First name', 'N/A')}")
-            
+
             with col2:
                 st.write(f"**Telephone:** {customer.get('Telephone number', 'N/A')}")
                 st.write(f"**Email:** {customer.get('e-mail address', 'N/A')}")
-            
+
             status = customer.get("validation_status", "N/A")
-            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>", 
-                    unsafe_allow_html=True)
-        
+            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>",
+                        unsafe_allow_html=True)
+
         # Contractor's Project Manager
         with st.expander("👨‍💼 Contractor's Project Manager", expanded=True):
             contractor = result.get("contractor_project_manager", {})
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.write(f"**Surname:** {contractor.get('Surname', 'N/A')}")
                 st.write(f"**First Name:** {contractor.get('First name', 'N/A')}")
-            
+
             with col2:
                 st.write(f"**Telephone:** {contractor.get('Telephone number', 'N/A')}")
                 st.write(f"**Email:** {contractor.get('e-mail address', 'N/A')}")
-            
+
             status = contractor.get("validation_status", "N/A")
-            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>", 
-                    unsafe_allow_html=True)
-        
+            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>",
+                        unsafe_allow_html=True)
+
         # Place of Performance
         with st.expander("📍 Place of Performance", expanded=True):
             place = result.get("place_of_performance", {})
@@ -117,7 +118,6 @@ class DisplayManager:
             else:
                 st.write("**Details:** N/A")
 
-        
         # Subcontractor Details
         with st.expander("🤝 Subcontractor Details", expanded=True):
             subcontractor = result.get("subcontractor_details", {})
@@ -128,78 +128,77 @@ class DisplayManager:
 
         with st.expander("💰 Remuneration Details", expanded=True):
             remuneration = result.get("remuneration_details", {})
-        
+
             col1, col2 = st.columns([2, 1])
             with col1:
                 st.write("**Marked Options:**")
                 for option in remuneration.get("marked_options", []):
                     st.write(f"- {option.get('option', 'N/A')}")
-                    if option.get('amount') != 'N/A' and option.get('amount') != 'Missing':
+                    if option.get('amount') not in (None, 'N/A', 'Missing'):
                         st.write(f"  Amount: {option.get('amount', 'N/A')} {option.get('currency', 'N/A')}")
-                    if option.get('rate_card_status') != 'N/A':
+                    if option.get('rate_card_status') not in (None, 'N/A'):
                         st.write(f"  Rate Card: {option.get('rate_card_status', 'N/A')}")
-        
+
             with col2:
                 status = remuneration.get("validation_status", "N/A")
-                st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>", 
-                        unsafe_allow_html=True)
-            
+                st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>",
+                            unsafe_allow_html=True)
+
             st.info(remuneration.get("validation_reason", "No details"))
 
         # Invoicing
         with st.expander("📧 Invoicing", expanded=True):
             invoicing = result.get("invoicing", {})
-            
+
             col1, col2 = st.columns([2, 1])
             with col1:
                 st.write("**Marked Options:**")
                 for option in invoicing.get("marked_options", []):
                     st.write(f"- {option.get('option', 'N/A')}")
-                    if option.get('milestone_details') and option.get('milestone_details') != 'N/A':
+                    if option.get('milestone_details'):
                         st.write(f"  Milestones: {option.get('milestone_details', 'N/A')}")
-            
+
             with col2:
                 status = invoicing.get("validation_status", "N/A")
-                st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>", 
-                        unsafe_allow_html=True)
-            
+                st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>",
+                            unsafe_allow_html=True)
+
             st.write(f"**Cross-Validation:** {invoicing.get('cross_validation_with_remuneration', 'N/A')}")
             st.info(invoicing.get("validation_reason", "No details"))
 
-
-            # VAT
+        # VAT
         with st.expander("💶 VAT (Value Added Tax)", expanded=True):
             vat = result.get("vat", {})
             col1, col2 = st.columns([2, 1])
-            
+
             with col1:
                 st.write(f"**Marked Option:** {vat.get('marked_option', 'N/A')}")
                 st.write(f"**Expected Option:** {vat.get('expected_option', 'N/A')}")
-            
+
             with col2:
                 status = vat.get("validation_status", "N/A")
-                st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>", 
-                        unsafe_allow_html=True)
-            
+                st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>",
+                            unsafe_allow_html=True)
+
             st.info(vat.get("validation_reason", "No details"))
 
         # Invoice Address
         with st.expander("📮 Invoice Address", expanded=True):
             invoice = result.get("invoice_address", {})
-            
+
             if invoice.get("address_present"):
                 st.write(f"**Extracted Address:** {invoice.get('extracted_address', 'N/A')}")
                 st.write(f"**Matched With:** {invoice.get('matched_address', 'None')}")
-            
+
             status = invoice.get("validation_status", "N/A")
-            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>", 
-                    unsafe_allow_html=True)
+            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>",
+                        unsafe_allow_html=True)
             st.info(invoice.get("validation_reason", "No details"))
 
         # Data Protection, Security, Outsourcing
         with st.expander("🔒 Data Protection, Information Security & Outsourcing", expanded=True):
             dps = result.get("data_protection_security_outsourcing", {})
-            
+
             for category, label in [
                 ("data_protection", "Data Protection"),
                 ("information_security", "Information Security"),
@@ -207,7 +206,7 @@ class DisplayManager:
             ]:
                 st.write(f"**{label}:**")
                 cat_data = dps.get(category, {})
-                
+
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.write(f"Marked: {cat_data.get('marked', 'N/A')}")
@@ -215,16 +214,16 @@ class DisplayManager:
                     st.write(f"Document: {'Yes' if cat_data.get('document_included') else 'No'}")
                 with col3:
                     status = cat_data.get("validation_status", "N/A")
-                    st.markdown(f"<span class='{get_status_style(status)}'>{status}</span>", 
-                            unsafe_allow_html=True)
-                
+                    st.markdown(f"<span class='{get_status_style(status)}'>{status}</span>",
+                                unsafe_allow_html=True)
+
                 st.caption(cat_data.get("validation_reason", ""))
                 st.divider()
 
         # Terms and Termination
         with st.expander("📅 Terms and Termination", expanded=True):
             terms = result.get("terms_and_termination", {})
-            
+
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Start Date", terms.get("start_date", "Missing"))
@@ -232,18 +231,18 @@ class DisplayManager:
                 st.metric("End Date", terms.get("end_date", "Missing"))
             with col3:
                 st.metric("Duration", terms.get("contract_duration", "N/A"))
-            
+
             st.write(f"**Multiyear Contract:** {'Yes' if terms.get('is_multiyear') else 'No'}")
-            
+
             status = terms.get("validation_status", "N/A")
-            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>", 
-                    unsafe_allow_html=True)
+            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>",
+                        unsafe_allow_html=True)
             st.info(terms.get("validation_reason", "No details"))
 
         # Signature Verification
         with st.expander("✍️ Signature Verification", expanded=True):
             sig = result.get("signature_verification", {})
-            
+
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Total Signatures", sig.get("total_signatures", 0))
@@ -253,91 +252,100 @@ class DisplayManager:
                 st.metric("Supplier", sig.get("supplier_signatures", 0))
             with col4:
                 st.metric("Required", sig.get("required_signatures", 0))
-            
+
             st.write(f"**GSP Approval Present:** {'Yes' if sig.get('gsp_approval_present') else 'No'}")
             st.write(f"**Applied Rules:** {', '.join(sig.get('applied_rules', []))}")
-            
+
             status = sig.get("validation_status", "N/A")
-            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>", 
-                    unsafe_allow_html=True)
+            st.markdown(f"**Status:** <span class='{get_status_style(status)}'>{status}</span>",
+                        unsafe_allow_html=True)
             st.info(sig.get("validation_reason", "No details"))
 
+        # -------------------------
         # Legal Clause Validation
-        with st.expander("📅 Legal Clause Validation", expanded=True):
+        # -------------------------
+        with st.expander("⚖️ Legal Clause Validation", expanded=True):
             legal_check = result.get("legal_clause_validation", {})
+
+            # Case 1: no data
             if not legal_check:
-                #fallback for old data
-                st.warning("legacy data format detected")
+                st.info("No legal clause validation data available.")
+
+            # Case 2: Legacy format where engine returned a top-level 'changes' key (keeps backward compat)
+            elif isinstance(legal_check, dict) and "changes" in legal_check:
+                st.warning("Legacy data format detected.")
                 st.json(legal_check)
-            elif "changes" in legal_check:
+
+            # Case 3: New engine format - dictionary of section_name -> {status, diff_html, change_ratio}
+            else:
                 found_valid_section = False
                 for section_name, section_data in legal_check.items():
+                    # Skip any non-dict top-level values
                     if not isinstance(section_data, dict):
                         continue
+
                     found_valid_section = True
-                    status = section_data.get("status", "UNKNOWN")
-                    diff_html = section_data.get("diff_markdown", "")
+                    status_val = section_data.get("status", "UNKNOWN")
+                    diff_html = section_data.get("diff_markdown", "")  
                     change_ratio = section_data.get("change_ratio", 0.0)
 
-                    #header
-                    col1, col2 = st.columns([3,1])
+                    # Header
+                    col1, col2 = st.columns([3, 1])
                     with col1:
                         st.markdown(f"#### {section_name}")
                     with col2:
-                        st.markdown(f"**Status:** <span class= '{get_status_style(status)}'>{status}</span>",
+                        st.markdown(f"**Status:** <span class='{get_status_style(status_val)}'>{status_val}</span>",
                                     unsafe_allow_html=True)
-                    
-                    #Body
-                    if status == "MATCH":
-                        st.success(" Exact Match with Knowledge Base")
-                    elif status == "CHANGED":
-                        st.warning(f" Deviation Detected ({change_ratio: .1%} change)")
+
+                    # Body
+                    if status_val == "MATCH":
+                        st.success("✅ Exact match with Knowledge Base.")
+                    elif status_val == "CHANGED":
+                        st.warning(f"⚠️ Deviation detected ({change_ratio:.1%} change)")
                         if diff_html:
-                            st.caption(" Redline Difference")
+                            st.caption("Redline Difference:")
                             st.markdown(
                                 f"""<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #ddd; font-family: monospace; white-space: pre-wrap;">{diff_html}</div>""",
-                                 unsafe_allow_html=True
+                                unsafe_allow_html=True
                             )
                         else:
                             st.write("Differences found, but no visual redline available.")
+                    else:
+                        # Unknown / other statuses
+                        st.write(f"Status: {status_val}")
+                        if diff_html:
+                            st.caption("Redline (preview):")
+                            st.markdown(
+                                f"""<div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; border: 1px solid #ddd; font-family: monospace; white-space: pre-wrap;">{diff_html}</div>""",
+                                unsafe_allow_html=True
+                            )
+
                     st.divider()
+
                 if not found_valid_section:
-                    st.write("No valid section comparisons found.")
-            status = legal_check.get("validation_status", "N/A")
-            st.markdown(f"**Status:** <span style='{get_status_style(status)}'>{status}</span>", 
-                        unsafe_allow_html=True)
+                    st.write("No valid section comparisons found in the provided legal validation output.")
 
-            changes = legal_check.get("changes", {})
-            sections = changes.get("sections", "No changes identified")
-            clause_position = changes.get("clause_position", "N/A")
-            words_changed = changes.get("words_changed", "N/A")
-
-            st.markdown(f"**Sections:** {sections}")
-            st.info(f"Clause Position: {clause_position}")
-            st.info(f"Words Changed: {words_changed}")
-
+        # Service Description Validation
         with st.expander("📄 Service Description Validation", expanded=True):
             service_check = result.get("service_description_validation", {})
             status_val = service_check.get("validation_status", "N/A")
-            
+
             st.markdown(
-                f"**Status:** <span style='{get_status_style(status_val)}'>{status_val}</span>", 
+                f"**Status:** <span class='{get_status_style(status_val)}'>{status_val}</span>",
                 unsafe_allow_html=True
             )
-            
+
             differences = service_check.get("modified_sections", [])
             if differences:
                 st.subheader("Differences")
                 for diff in differences:
                     section = diff.get("section", "N/A")
                     difference = diff.get("difference_summary", "N/A")
-                    
+
                     st.markdown(f"**Section:** {section}")
                     st.text_area(f"Difference", value=difference, height=150)
             else:
                 st.success("No differences found between contract and reference service description.")
-
-
 
         # Provide JSON viewer at the end
         with st.expander("📋 View Raw JSON", expanded=False):
