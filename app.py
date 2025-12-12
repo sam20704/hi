@@ -11,9 +11,10 @@ from services.document_extractor import DocumentExtractor
 from services.contract_analyzer import ContractAnalyzer
 from services.service_description_validator import ServiceDescriptionValidator
 from ui.styles import Styles
-from ui.manager import DisplayManager
+from ui.display_manager import DisplayManager
 from utils.excel_writer import convert_validation_to_excel
 
+import legal_redline_diff_engine
 def main():
     # Page setup + styles
     AppConfig.setup_page()
@@ -116,6 +117,12 @@ def main():
                     # Step 2: Service description validation
                     service_result = service_validator.validate_service_description(service_description_md)
 
+                    status.info("Running Legal Redline Comparision.....")
+                    redline_results = legal_redline_diff_engine.get_legal_redline_for_document(
+                        document_text=full_text
+                    )
+
+                    result_json["legal_clause_validation"] = redline_results
 
                     # Step 3: Append service description result to main JSON
                     result_json["service_description_validation"] = service_result
