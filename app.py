@@ -14,7 +14,9 @@ from ui.styles import Styles
 from ui.display_manager import DisplayManager
 from utils.excel_writer import convert_validation_to_excel
 
+# Engine that produces legal redline diffs
 import legal_redline_diff_engine
+
 def main():
     # Page setup + styles
     AppConfig.setup_page()
@@ -58,7 +60,7 @@ def main():
                 </div>
                 ''', unsafe_allow_html=True
             )
-            
+
         st.divider()
         st.header("ℹ️ Application Info")
         st.info("**Document Validator v1.0**\n\nThis application uses Azure Document Intelligence to extract text from PDFs and Azure OpenAI to analyze contract content automatically.")
@@ -104,6 +106,7 @@ def main():
                 with st.spinner("Extracting text..."):
                     full_text, page_count, extraction_time = extractor.extract_text(pdf_content)
                     service_description_md = extractor.extract_service_description(full_text)
+                # debug print left intentionally - remove if not desired
                 print(service_description_md)
                 st.session_state.extraction_time = extraction_time
                 st.session_state.page_count = page_count
@@ -115,18 +118,27 @@ def main():
                     result_json, analysis_time, usage_stats = analyzer.analyze(full_text)
 
                     # Step 2: Service description validation
-                    service_result = service_validator.validate_service_description(service_description_md)
+                    service_result = service_validator.validate_service_description(service_description_md or "")
 
-                    status.info("Running Legal Redline Comparision.....")
-                    redline_results = legal_redline_diff_engine.get_legal_redline_for_document(
-                        document_text=full_text
-                    )
+                    # ---------------------------------------------------------
+                    # START NEW CODE: Run the Legal Redline Diff Engine
+                    # ---------------------------------------------------------
+                    status.info("⚖️ Running Legal Redline Comparison...")
+                    with st.spinner("Running redline comparison..."):
+                        redline_results = legal_redline_diff_engine.get_legal_redline_for_document(
+                            document_text=full_text
+                        ) or {}
 
+                    # OVERWRITE or set the legal_clause_validation key with engine results
                     result_json["legal_clause_validation"] = redline_results
+                    # ---------------------------------------------------------
+                    # END NEW CODE
+                    # ---------------------------------------------------------
 
                     # Step 3: Append service description result to main JSON
                     result_json["service_description_validation"] = service_result
 
+                # Save stats & session state
                 st.session_state.analysis_time = analysis_time
                 st.session_state.usage_stats = usage_stats
                 st.session_state.processing_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -156,7 +168,7 @@ def main():
         # Download raw JSON
         json_str = json.dumps(st.session_state.result, indent=2)
         excel_buffer = convert_validation_to_excel(st.session_state.result)
-        col1, col2,col3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.download_button(
                 label="⬇️ Download Results (JSON)",
