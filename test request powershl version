@@ -4,13 +4,18 @@ curl http://127.0.0.1:8000/nl-query `
  -Body '{ "question": "List all customers" }'
 
 
-curl : {"detail":"'tuple' object is not callable"}
+PS C:\Users\FPNUYEK\OneDrive - Allianz\Documents\SAP\backend> curl http://127.0.0.1:8000/nl-query `
+>>  -Method POST `
+>>  -Headers @{ "Content-Type"="application/json" } `
+>>  -Body '{ "question": "List all customers" }'
+curl : {"detail":"Error code: 404 - {'error': {'code': '404', 
+'message': 'Resource not found'}}"}
 At line:1 char:1
 + curl http://127.0.0.1:8000/nl-query `
 + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : InvalidOperation: (System.Net.Htt 
-   pWebRequest:HttpWebRequest) [Invoke-WebRequest], WebExcepti  
+    + CategoryInfo          : InvalidOperation: (System.Net.Htt  
+   pWebRequest:HttpWebRequest) [Invoke-WebRequest], WebExcepti   
   on
-    + FullyQualifiedErrorId : WebCmdletWebResponseException,Mic 
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Mic  
    rosoft.PowerShell.Commands.InvokeWebRequestCommand
-PS C:\Users\FPNUYEK\OneDrive - Allianz\Documents\SAP> 
+PS C:\Users\FPNUYEK\OneDrive - Allianz\Documents\SAP\backend> 
