@@ -1,7 +1,8 @@
-# backend/core/config.py
 from pydantic_settings import BaseSettings
-from typing import Optional
+from pathlib import Path
 
+# Always resolves to the backend/ directory
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
     # App
@@ -15,15 +16,14 @@ class Settings(BaseSettings):
     AZURE_OPENAI_DEPLOYMENT_NAME: str
     AZURE_OPENAI_API_VERSION: str = "2024-10-21"
 
-    # Database
-    SAP_DB_PATH: str = "./dummy.db"
+    SAP_DB_PATH: str = str(BASE_DIR / "sap_dummy.db")
 
     # Optional future infra
-    REDIS_URL: Optional[str] = None
     LOG_LEVEL: str = "INFO"
 
     class Config:
         env_file = ".env"
 
 
+# Single global settings object
 settings = Settings()
