@@ -13,7 +13,7 @@ app = FastAPI(
     version=settings.APP_VERSION,
 )
 
-# ---- CORS (same as your apiconnector.py) ----
+# ---- CORS ----
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -21,13 +21,13 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,   # use ["*"] only for dev if needed
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ---- DB helper (simple & safe) ----
+# ---- DB helper (safe SELECT-only execution) ----
 def execute_select(sql: str):
     if not sql.lower().startswith("select"):
         raise ValueError("Only SELECT queries are allowed")
@@ -53,31 +53,42 @@ class NLQuery(BaseModel):
 
 @app.get("/")
 def root_controller():
-    """Health check (same as apiconnector.py)"""
     return {"status": "healthy"}
 
 
 @app.post("/nl-query")
 async def natural_language_query(payload: NLQuery):
     """
-    1. User asks a natural language question
-    2. LLM converts it to SQL
-    3. SQL runs against SQLite dummy SAP DB
-    4. LLM summarizes the result
+    Flow:
+    1. User asks question
+    2. LLM generates SQL
+    3. SQLite executes SQL
+    4. If intent is LIST/SHOW → return raw DB rows
+       Else → return LLM explanation
     """
     llm = LLMService()
 
     try:
-        # NL → SQL
+        # 1️⃣ NL → SQL
         sql = await llm.nl_to_sql(payload.question)
 
-        # SQL → DB
+        # 2️⃣ SQL → DB
         columns, rows = execute_select(sql)
 
-        # DB → Human answer
-        answer = await llm.summarize_results(
-            payload.question, columns, rows
-        )
+        # 3️⃣ Decide response style
+        question_lower = payload.question.lower().strip()
+
+        if question_lower.startswith(("list", "show", "display", "give")):
+            # Return RAW database values (SAP-style)
+            answer = "\n".join(
+                ", ".join(str(v) for v in row)
+                for row in rows
+            )
+        else:
+            # Business explanation (LLM)
+            answer = await llm.summarize_results(
+                payload.question, columns, rows
+            )
 
         return {
             "sql": sql,
