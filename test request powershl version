@@ -1,0 +1,4 @@
+curl http://127.0.0.1:8000/nl-query `
+ -Method POST `
+ -Headers @{ "Content-Type"="application/json" } `
+ -Body '{ "question": "List all customers" }'
