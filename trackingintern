@@ -1,0 +1,57 @@
+this is regarding mlops sessions review by Danish, he was very good taught us the concepts well, got to know about docker containerization, fastapi framework, async, restapi, git version control etc topics.
+we were given a project (full stack project) for sentiment analysis where we used all the concepts we studied and it was a good experience and a learning, which we demonstrated to danish today morning.
+regarding the document translation poc, I am currently helping out Aswin, Hari and Rahul for the ui part and will continue till you assign me the next task
+And whenever you are free please do connect me with anyone for the next task or I am very happy to work under your guidance as I did till now .
+Good morning Ashwil sir, this morning while exploring other possible alternatives for our doc translation poc, i found this from landing ai page which i thought perfectly fits our requirements, since our main problem is with the extraction part only and doc intelligence not being able to parse the complex layout of our annual report/other documents we were having many problems and we even tried with possible other alternatives but none of them worked. After watching the yt video i thought this is the need of the hour for us as we are primarily facing issues with the extraction itself, This Agentic Doc Extraction tool is primarily built on DPT-2(Document pre trained transformer , 2 is the latest version which will be able to parse even signatures, logos, identity cards,barcodes etc also).
+
+
+
+Generative AI with SAP and Amazon Bedrock Utilizing GenAI with SAP and AWS Business Use Cases — Miguel Figueiredo 
+SAP Use-case- tracker for repos and knowledge 
+https://github.com/SAP-samples/btp-cap-genai-rag 
+Official SAP sample for building genAI integrated applications.  
+Architecture (how it works): 
+ 
+User opens the chat app on phone/computer ⏩ Application router (for authorization) ⏩ then SAPUI5 opens (the face/ chat window) ⏩ type ur query/ question ⏩ the question goes to the brain ”SAP CAP Service” ⏩ the first stop is SAP HANA CLOUD where it uses vector engine in the first attempt to find things related to query(grounding process) ⏩ now the next path is to look into the ”Destination Service” to find the secret and secure path to LLM ⏩ then it enters the Generative AI hub . Inside this the orchestrator takes the files and does ”Data Masking” (removes any confidential information so that the AI neve sees it like credit card info,keys etc) ->”Templating” (arranging the resources to draft a clear prompt to the llm) ->  the orchestration now passes thsi grounded prompt to foundation models ⏩ The end result. 
+ 
+How this helps with our chatbot usecase: 
+* This repo is the Orchestrator/MCP Client, this is the RAG part (using HANA vector engine) 
+Next steps : 
+1. Create an SAP Destination Service (this will have the secure address (the Odata API URL) for our system) 
+ 
+2.  Add this new function in our CAP Service code (ex: check_live_sales : when user gives an order number, I should use S/4 HANA Destination Service to look into live system and get status)  
+Link:- GitHub - CostingGeek/sap-mcp: An MCP server to retrieve information like Sales Orders from the SAP … 
+Approach:- This repository contains a Python-based solution that enables bidirectional communication between Claude (Anthropic's large language model) and SAP systems via the SAP Graph API. By leveraging the Model Context Protocol (MCP), this integration allows Claude to retrieve and process SAP business data in real-time. Claude could be changed to other LLMs as per the usecase. 
+ 
+Link:- GitHub - tqtensor/pythonizesap: Automatic data extraction from SAP by using Python 
+Approach:- GuiXT is used for simplifying and customizing the SAP GUI, while SAP GUI Scripting allows for recording and replaying user interactions, which can then be integrated with Python. This approach currently does not include MCP. 
+Activating GuiXT 
+ Link:- GitHub - GutjahrAI/sap-odata-mcp-py: Yet Another Python Based SAP MCP Server
+Apporach:- Implements a Model Context Protocol (MCP) server that enables AI assistants to interact with SAP OData services. The above approach automatically finds the available OData services, locates entities across multiple services, provides CRUD support, follows a batch operating strategy, and effective error handling. 
+ Link:- GitHub - CDataSoftware/sap-erp-mcp-server-by-cdata: This read-only MCP Server allows you to connect… 
+Approach:- This MCP Server allows you to connect to SAP ERP data from Claude Desktop through CData JDBC Drivers and provides full CRUD functionality. 
+RAG using Azure: 
+To integrate RAG into our application, we can make use of agentic retrieval in Azure cloud platform, a specialized pipeline designed specifically for RAG patterns.   
+What we need: one or more knowledge sources, a knowledge agent, and the retrieve action that you call from application code, such as a tool that works with your agent. 
+Classic RAG integation: 
+Start with a user question or request (prompt). 
+Send it as a query request to Azure AI Search to find relevant information. 
+Return the top-ranked search results to an LLM. 
+Use the natural language understanding and reasoning capabilities of the LLM to generate a response to the initial prompt. 
+ RAG and generative AI - Azure AI Search | Microsoft Learn 
+Blog for implementing RAG in azure environments 
+ azure-search-openai-demo/README.md at main · Azure-Samples/azure-search-openai-demo 
+Github repo (demo) for implementing RAG concepts in Azure environments 
+GitHub - SAP-samples/btp-cap-genai-rag: Explore this repository for GenAI samples on SAP Business Technology Platform (SAP BTP). We provide examples for single and multitenant versions, showcasing ...
+Explore this repository for GenAI samples on SAP Business Technology Platform (SAP BTP). We provide examples for single and multitenant versions, showcasing integration of LLMs via SAP AI Core, Lan...
+ 
+
+
+SAP Use Case Case 1: Query related to procurement and payment. queries like invoice submission, payment suppliers, detailed response with Date, Document (Invoice) number. Right now, the overall system is in SAP.
+Approach:
+Chatbot :
+1. Seamless SAP Integration: The chatbot connects directly with SAP Database, allowing users to easily access information related to procurement, payments, purchase orders, and requisitions through simple queries.
+2. Efficient Data Handling: A middleware server, known as the Model Control Protocol (MCP), facilitates communication between the chatbot and SAP, ensuring efficient data retrieval and exchange.
+3. Intuitive User Experience: The chatbot delivers clear, actionable insights by interpreting the data and applying business logic, making complex SAP interactions straightforward and enhancing operational efficiency.
+Process flow: User initiates query -> secure sap DB access using mcp ->data retrieval and processing -> actionable response to the user
+ 
