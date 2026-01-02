@@ -120,9 +120,6 @@ def main():
                     # Step 2: Service description validation
                     service_result = service_validator.validate_service_description(service_description_md or "")
 
-                    # ---------------------------------------------------------
-                    # START NEW CODE: Run the Legal Redline Diff Engine
-                    # ---------------------------------------------------------
                     status.info("⚖️ Running Legal Redline Comparison...")
                     with st.spinner("Running redline comparison..."):
                         redline_results = legal_redline_diff_engine.get_legal_redline_for_document(
@@ -131,10 +128,7 @@ def main():
 
                     # OVERWRITE or set the legal_clause_validation key with engine results
                     result_json["legal_clause_validation"] = redline_results
-                    # ---------------------------------------------------------
-                    # END NEW CODE
-                    # ---------------------------------------------------------
-
+    
                     # Step 3: Append service description result to main JSON
                     result_json["service_description_validation"] = service_result
 
