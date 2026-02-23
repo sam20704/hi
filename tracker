@@ -1,0 +1,1040 @@
+ modified:   app/agents/critic_agent.py
+        modified:   app/agents/reflection_agent.py
+        modified:   app/config.py
+        modified:   app/prompts/critic_prompt.txt
+        modified:   app/prompts/reflection_prompt.txt
+        modified:   app/schemas/critic.py
+        modified:   app/schemas/reflection.py
+        modified:   app/services/validator.py
+        modified:   requirements.txt
+
+to be modified:
+tests/test_pipeline.py:
+#pipeline testing to tell if its working properly or not
+"""
+Offline deterministic test suite for forensic validation pipeline.
+"""
+
+import pytest
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+from pydantic import ValidationError
+
+from app.schemas.evidence import EvidenceCaseFile, ModuleResult, Priority
+from app.schemas.critic import (
+    CriticReport,
+    Contradiction,
+    ContradictionType,
+    ContradictionImpact,
+    ConfidenceLevel,
+)
+from app.schemas.reflection import (
+    ForensicVerdict,
+    Severity,
+    EvidenceItem,
+    EvidenceSource,
+    EvidenceWeight,
+)
+from app.agents.critic_agent import preflight_check, serialize_case_file, PromptLoader
+from app.agents.reflection_agent import should_flag_for_review, validate_verdict
+from app.services.validator import ForensicValidator, PipelineError, PipelineResult
+from app.services.llm_clients import LLMFatalError
+from app.agents.critic_agent import CriticAgent
+from app.agents.reflection_agent import ReflectionAgent
+
+
+# ───────────────────────── FIXTURES ─────────────────────────
+
+@pytest.fixture
+def clean_case():
+    return EvidenceCaseFile(
+        case_id="CLEAN",
+        metadata=ModuleResult(score=1, signals=["single_tool"]),
+        font=ModuleResult(score=0, signals=[]),
+        compression=ModuleResult(score=1, signals=["minor_compression"]),
+        deterministic_score=2,
+        priority=Priority.Low,
+    )
+
+
+@pytest.fixture
+def tampered_case():
+    return EvidenceCaseFile(
+        case_id="TAMPER",
+        metadata=ModuleResult(score=6, signals=["tool_mismatch"]),
+        font=ModuleResult(score=5, signals=["mixed_fonts"]),
+        compression=ModuleResult(score=4, signals=["double_compression"]),
+        deterministic_score=10,
+        priority=Priority.High,
+    )
+
+
+@pytest.fixture
+def mock_critic_report():
+    return CriticReport(
+        rule_consistency=True,
+        contradictions=[],
+        reinforcement=["All modules reinforce"],
+        confidence=0.95,
+        confidence_level=ConfidenceLevel.VERY_HIGH,
+        confidence_reason="Strong agreement",
+        audit_notes="OK",
+        rerun_recommended=False,
+    )
+
+
+@pytest.fixture
+def mock_verdict(tampered_case):
+    return ForensicVerdict(
+        case_id=tampered_case.case_id,
+        tampered=True,
+        severity=Severity.High,
+        deterministic_score=10,
+        confidence=0.93,
+        confidence_level=ConfidenceLevel.VERY_HIGH,
+        explanation="Strong tampering evidence.",
+        evidence=[
+            EvidenceItem(
+                source=EvidenceSource.METADATA,
+                finding="Multiple tools detected",
+                weight=EvidenceWeight.SUPPORTING,
+            )
+        ],
+        flagged_for_human_review=False,
+    )
+
+
+# ───────────────────────── SCHEMA TESTS ─────────────────────────
+
+def test_priority_alignment():
+    with pytest.raises(ValidationError):
+        EvidenceCaseFile(
+            case_id="FAIL",
+            metadata=ModuleResult(score=5, signals=[]),
+            font=ModuleResult(score=4, signals=[]),
+            compression=ModuleResult(score=0, signals=[]),
+            deterministic_score=9,
+            priority=Priority.Low,
+        )
+
+
+# ───────────────────────── PREFLIGHT ─────────────────────────
+
+def test_preflight_clean(clean_case):
+    assert preflight_check(clean_case) is None
+
+
+def test_preflight_detects_score_mismatch():
+    case = EvidenceCaseFile(
+        case_id="BAD",
+        metadata=ModuleResult(score=3, signals=["a"]),
+        font=ModuleResult(score=2, signals=["b"]),
+        compression=ModuleResult(score=0, signals=[]),
+        deterministic_score=7,
+        priority=Priority.Medium,
+    )
+    assert preflight_check(case) is not None
+
+
+# ───────────────────────── REFLECTION FLAGS ─────────────────────────
+
+def test_flag_low_confidence(tampered_case):
+    critic = CriticReport(
+        rule_consistency=True,
+        contradictions=[],
+        reinforcement=[],
+        confidence=0.4,
+        confidence_level=ConfidenceLevel.LOW,
+        confidence_reason="weak",
+        audit_notes="",
+        rerun_recommended=False,
+    )
+    assert should_flag_for_review(tampered_case, critic) is not None
+
+
+# ───────────────────────── POST VERDICT ─────────────────────────
+
+def test_validate_verdict_score_fix(tampered_case):
+    verdict = ForensicVerdict(
+        case_id="wrong",
+        tampered=True,
+        severity=Severity.Low,
+        deterministic_score=3,
+        confidence=0.5,
+        confidence_level=ConfidenceLevel.MEDIUM,
+        explanation="bad",
+        evidence=[
+            EvidenceItem(
+                source=EvidenceSource.FONT,
+                finding="x",
+                weight=EvidenceWeight.SUPPORTING,
+            )
+        ],
+    )
+
+    corrected = validate_verdict(verdict, tampered_case, None)
+
+    assert corrected.case_id == tampered_case.case_id
+    assert corrected.deterministic_score == 10
+    assert corrected.severity == Severity.High
+
+
+# ───────────────────────── SERIALIZATION ─────────────────────────
+
+def test_serialize(clean_case):
+    data = json.loads(serialize_case_file(clean_case))
+    assert "qr" not in data
+    assert data["case_id"] == "CLEAN"
+
+
+# ───────────────────────── FULL PIPELINE ─────────────────────────
+
+@pytest.mark.asyncio
+async def test_pipeline(clean_case, mock_critic_report, mock_verdict):
+    critic = CriticAgent.__new__(CriticAgent)
+    critic.audit = AsyncMock(return_value=mock_critic_report)
+
+    reflection = ReflectionAgent.__new__(ReflectionAgent)
+    reflection.judge = AsyncMock(return_value=mock_verdict)
+
+    validator = ForensicValidator(critic=critic, reflection=reflection)
+
+    result = await validator.validate(clean_case)
+
+    assert result.success is True
+    assert result.verdict.tampered is True
+    assert isinstance(result.duration_ms, float)
+
+
+# ───────────────────────── ERROR PATH ─────────────────────────
+
+@pytest.mark.asyncio
+async def test_critic_failure(clean_case):
+    critic = CriticAgent.__new__(CriticAgent)
+    critic.audit = AsyncMock(side_effect=LLMFatalError("boom"))
+
+    reflection = ReflectionAgent.__new__(ReflectionAgent)
+
+    validator = ForensicValidator(critic=critic, reflection=reflection)
+
+    with pytest.raises(PipelineError):
+        await validator.validate(clean_case)
+
+
+# ───────────────────────── PROMPT LOADER ─────────────────────────
+
+def test_missing_fewshots_returns_empty():
+    with patch(
+        "app.agents.critic_agent._FEWSHOT_FILE",
+        MagicMock(exists=MagicMock(return_value=False)),
+    ):
+        PromptLoader.clear_cache()
+        shots = PromptLoader.get_fewshots()
+        assert shots == []
+
+
+# ───────────────────────── PIPELINE RESULT ─────────────────────────
+
+def test_pipeline_result_to_dict(mock_verdict, mock_critic_report):
+    result = PipelineResult(
+        verdict=mock_verdict,
+        critic_report=mock_critic_report,
+        case_id="X",
+        duration_ms=100,
+        success=True,
+    )
+
+    d = result.to_dict()
+    assert d["success"] is True
+
+main.py:
+"""
+Architecture:
+    POST /validate → ForensicValidator → PipelineResult → JSON
+"""
+
+import logging
+import time
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+
+from app.config import settings
+from app.schemas.evidence import EvidenceCaseFile
+from app.services.validator import validate_case, get_validator, PipelineError
+from app.services.llm_clients import shutdown_clients
+
+
+# 
+# LOGGING SETUP
+# 
+
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
+    format=(
+        "%(asctime)s | %(name)-20s | %(levelname)-7s | %(message)s"
+    ),
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+logger = logging.getLogger("forensic.api")
+
+
+# 
+# APPLICATION LIFECYCLE
+# 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Startup and shutdown lifecycle.
+
+    Startup:
+        - Initialize validator (creates LLM clients)
+        - Log configuration
+
+    Shutdown:
+        - Close all LLM client connections gracefully
+    """
+    # ── Startup ──
+    logger.info("═══ Forensic Validation API starting ═══")
+    logger.info(f"Critic model:     {settings.LLAMA_MODEL}")
+    logger.info(f"Reflection model: {settings.CLAUDE_MODEL}")
+    logger.info(f"Max retries:      {settings.MAX_RETRIES}")
+    logger.info(f"Log level:        {settings.LOG_LEVEL}")
+
+    # Eagerly initialize validator + clients
+    get_validator()
+
+    logger.info("═══ API ready ═══")
+
+    yield
+
+    # ── Shutdown ──
+    logger.info("═══ Shutting down ═══")
+    await shutdown_clients()
+    logger.info("═══ Shutdown complete ═══")
+
+
+
+# FASTAPI APP
+
+
+app = FastAPI(
+    title="Forensic Document Validation API",
+    description=(
+        "Agentic validation layer for document tampering detection. "
+        "Receives deterministic module scores and produces "
+        "forensic verdicts with reasoning and explanation."
+    ),
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+
+
+# ERROR RESPONSES
+
+
+class ErrorResponse:
+    """Standardized error response builder."""
+
+    @staticmethod
+    def validation_error(detail: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "success": False,
+                "error": "validation_error",
+                "detail": detail,
+            },
+        )
+
+    @staticmethod
+    def pipeline_error(
+        case_id: str,
+        stage: str,
+        detail: str,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "success": False,
+                "error": "pipeline_error",
+                "case_id": case_id,
+                "failed_stage": stage,
+                "detail": detail,
+            },
+        )
+
+    @staticmethod
+    def internal_error(detail: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": "internal_error",
+                "detail": detail,
+            },
+        )
+
+
+
+# MIDDLEWARE: Request Logging
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """
+    Log every request with timing.
+    No sensitive data logged.
+    """
+    start = time.monotonic()
+    method = request.method
+    path = request.url.path
+
+    response = await call_next(request)
+
+    duration_ms = (time.monotonic() - start) * 1000
+    logger.info(
+        f"{method} {path} → {response.status_code} "
+        f"({duration_ms:.0f}ms)"
+    )
+
+    return response
+
+
+# ENDPOINTS
+
+
+@app.get(
+    "/health",
+    tags=["System"],
+    summary="Health check",
+)
+async def health():
+    """
+    Basic health check.
+
+    Returns:
+        200 with status and model configuration.
+    """
+    return {
+        "status": "healthy",
+        "models": {
+            "critic": settings.LLAMA_MODEL,
+            "reflection": settings.CLAUDE_MODEL,
+        },
+    }
+
+
+@app.post(
+    "/validate",
+    tags=["Validation"],
+    summary="Validate a document case file",
+    response_description="Forensic verdict with explanation and evidence",
+)
+async def validate_document(case: EvidenceCaseFile):
+    """
+    Run forensic validation on a deterministic case file.
+
+    **Flow:**
+    1. Receives module scores + signals from deterministic engine
+    2. Critic Agent (Llama 3.2) audits evidence consistency
+    3. Reflection Agent (Claude) produces final verdict + explanation
+    4. Returns complete result with audit trail
+
+    **Input:**
+    - `case_id`: Unique identifier
+    - `metadata`: Module result (score + signals)
+    - `font`: Module result (score + signals)
+    - `compression`: Module result (score + signals)
+    - `qr`: Optional module result
+    - `deterministic_score`: Pre-computed score (0-10)
+    - `priority`: Pre-computed priority (Low/Medium/High)
+
+    **Output:**
+    - `verdict`: Final forensic judgment
+    - `critic_report`: Internal audit findings
+    - `duration_ms`: Processing time
+    - `success`: True/False
+
+    **Error codes:**
+    - `422`: Invalid input (schema violation)
+    - `502`: LLM pipeline failure
+    - `500`: Unexpected server error
+    """
+    try:
+        result = await validate_case(case)
+        return result.to_dict()
+
+    except PipelineError as e:
+        logger.error(
+            f"[{e.case_id}] Pipeline error at {e.stage}: {e.cause}"
+        )
+        return ErrorResponse.pipeline_error(
+            case_id=e.case_id,
+            stage=e.stage,
+            detail=str(e.cause),
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during validation: {e}",
+            exc_info=True,
+        )
+        return ErrorResponse.internal_error(
+            detail="An unexpected error occurred. Check server logs.",
+        )
+
+
+# ═══════════════════════════════════════════════════════
+# PYDANTIC VALIDATION ERROR HANDLER
+# ═══════════════════════════════════════════════════════
+
+from fastapi.exceptions import RequestValidationError
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+):
+    """
+    Custom handler for Pydantic validation errors.
+
+    Produces cleaner error messages than FastAPI default.
+    Catches:
+        - Missing required fields
+        - Invalid field types
+        - Enum mismatches
+        - Priority/score alignment failures
+    """
+    errors = []
+    for error in exc.errors():
+        loc = " → ".join(str(l) for l in error["loc"])
+        msg = error["msg"]
+        errors.append(f"{loc}: {msg}")
+
+    detail = "; ".join(errors)
+
+    logger.warning(f"Validation error: {detail}")
+
+    return ErrorResponse.validation_error(detail=detail)
+
+  utils/logger.py
+
+services/llm_clients.py:
+#wrappers for llama and claude
+
+#services/llm_clients.py
+#Architecture:
+#    Critic Agent   → Llama 3.2 (via OpenAI-compatible API)
+#    Reflection Agent → Claude   (via Anthropic API)
+
+
+import json
+import re
+import uuid
+import logging
+import asyncio
+from abc import ABC, abstractmethod
+from typing import Type, TypeVar, Optional
+
+from pydantic import BaseModel, ValidationError
+
+from openai import (
+    AsyncOpenAI,
+    APIError as OpenAIAPIError,
+    RateLimitError as OpenAIRateLimitError,
+    APITimeoutError as OpenAITimeoutError,
+    APIConnectionError as OpenAIConnectionError,
+)
+from anthropic import (
+    AsyncAnthropic,
+    APIError as AnthropicAPIError,
+    RateLimitError as AnthropicRateLimitError,
+    APITimeoutError as AnthropicTimeoutError,
+    APIConnectionError as AnthropicConnectionError,
+)
+
+from app.config import settings
+
+
+logger = logging.getLogger("forensic.llm")
+T = TypeVar("T", bound=BaseModel)
+
+
+# ═══════════════════════════════════════════════════════
+# EXCEPTIONS
+# ═══════════════════════════════════════════════════════
+
+class LLMError(Exception):
+    """Base error for all LLM operations."""
+    pass
+
+
+class LLMRetryableError(LLMError):
+    """Transient error — safe to retry (rate limit, timeout, 5xx)."""
+    pass
+
+
+class LLMFatalError(LLMError):
+    """Permanent error — do NOT retry (auth, bad model, etc)."""
+    pass
+
+
+class LLMParsingError(LLMError):
+    """Response could not be parsed into valid JSON."""
+    pass
+
+
+class LLMSchemaViolation(LLMError):
+    """JSON parsed but failed Pydantic schema validation."""
+    pass
+
+
+# ═══════════════════════════════════════════════════════
+# JSON EXTRACTION
+# ═══════════════════════════════════════════════════════
+
+def extract_json(raw_text: str) -> dict:
+    """
+    Robustly extract JSON object from LLM response.
+
+    Handles:
+        1. Raw JSON string
+        2. Markdown-wrapped  ```json ... ```
+        3. JSON embedded in surrounding text
+        4. Nested brace matching
+
+    Raises:
+        LLMParsingError if no valid JSON found.
+    """
+    text = raw_text.strip()
+
+    # ── Attempt 1: Direct parse ──
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # ── Attempt 2: Markdown code block ──
+    md_match = re.search(
+        r"```(?:json)?\s*\n?(.*?)\n?\s*```",
+        text,
+        re.DOTALL,
+    )
+    if md_match:
+        try:
+            return json.loads(md_match.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+
+    # ── Attempt 3: First balanced { ... } block ──
+    brace_start = text.find("{")
+    if brace_start != -1:
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i in range(brace_start, len(text)):
+            char = text[i]
+
+            if escape_next:
+                escape_next = False
+                continue
+            if char == "\\":
+                escape_next = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[brace_start : i + 1])
+                    except json.JSONDecodeError:
+                        break
+
+    raise LLMParsingError(
+        f"No valid JSON found in response (first 200 chars): "
+        f"{text[:200]}"
+    )
+
+
+# ═══════════════════════════════════════════════════════
+# BASE CLIENT
+# ═══════════════════════════════════════════════════════
+
+class BaseLLMClient(ABC):
+    """
+    Abstract base for forensic LLM clients.
+
+    Provides:
+        - Schema-enforced generation
+        - Self-healing retry on parse/validation failure
+        - Exponential backoff on transient errors
+        - Request-level audit tracking
+    """
+
+    def __init__(
+        self,
+        model: str,
+        max_tokens: int,
+        temperature: float,
+        timeout: int,
+        max_retries: int,
+        retry_base_delay: float,
+    ):
+        self.model = model
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_base_delay = retry_base_delay
+
+    @abstractmethod
+    async def _raw_call(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema_hint: str,
+    ) -> str:
+        """
+        Execute raw API call. Returns raw text response.
+        Must raise LLMRetryableError or LLMFatalError.
+        """
+        ...
+
+    async def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema: Type[T],
+    ) -> T:
+        """
+        Call LLM → extract JSON → validate against Pydantic schema.
+
+        Self-healing: on parse/validation failure, feeds the error
+        back to the LLM on retry so it can correct itself.
+
+        Returns:
+            Validated Pydantic model instance.
+
+        Raises:
+            LLMFatalError after all retries exhausted.
+        """
+        request_id = uuid.uuid4().hex[:8]
+        schema_text = json.dumps(schema.model_json_schema(), indent=2)
+        last_error: Optional[str] = None
+
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                # ── Build prompt (self-healing on retry) ──
+                if attempt == 1:
+                    effective_prompt = user_prompt
+                else:
+                    effective_prompt = (
+                        f"{user_prompt}\n\n"
+                        f"--- CORRECTION (attempt {attempt}/{self.max_retries}) ---\n"
+                        f"Your previous response was invalid.\n"
+                        f"Error: {last_error}\n"
+                        f"Return ONLY valid JSON matching the schema. "
+                        f"No markdown. No extra text."
+                    )
+
+                logger.info(
+                    f"[{request_id}] LLM call | model={self.model} | "
+                    f"attempt={attempt}/{self.max_retries}"
+                )
+
+                # ── Raw API call ──
+                raw_response = await self._raw_call(
+                    system_prompt=system_prompt,
+                    user_prompt=effective_prompt,
+                    schema_hint=schema_text,
+                )
+
+                # ── Extract JSON ──
+                parsed = extract_json(raw_response)
+
+                # ── Validate against Pydantic schema ──
+                result = schema.model_validate(parsed)
+
+                logger.info(
+                    f"[{request_id}] Success | model={self.model} | "
+                    f"attempt={attempt}"
+                )
+                return result
+
+            except LLMParsingError as e:
+                last_error = f"JSON extraction failed: {str(e)[:200]}"
+                logger.warning(f"[{request_id}] {last_error}")
+
+            except ValidationError as e:
+                last_error = (
+                    f"Schema validation failed: "
+                    f"{e.error_count()} errors — {str(e)[:300]}"
+                )
+                logger.warning(f"[{request_id}] {last_error}")
+
+            except LLMRetryableError as e:
+                last_error = f"Transient error: {str(e)[:200]}"
+                delay = self.retry_base_delay * (2 ** (attempt - 1))
+                logger.warning(
+                    f"[{request_id}] {last_error} | "
+                    f"backing off {delay:.1f}s"
+                )
+                await asyncio.sleep(delay)
+
+            except LLMFatalError:
+                logger.error(f"[{request_id}] Fatal error — not retrying")
+                raise
+
+        raise LLMFatalError(
+            f"[{request_id}] All {self.max_retries} attempts failed "
+            f"for {self.model}. Last error: {last_error}"
+        )
+
+
+# ═══════════════════════════════════════════════════════
+# LLAMA CLIENT (Critic Agent)
+# ═══════════════════════════════════════════════════════
+
+class LlamaClient(BaseLLMClient):
+    """
+    Llama 3.2 via OpenAI-compatible API.
+
+    Supports: Together AI, Groq, Fireworks, vLLM, Ollama
+    Uses response_format=json_object when available.
+    """
+
+    def __init__(self):
+        super().__init__(
+            model=settings.LLAMA_MODEL,
+            max_tokens=settings.LLAMA_MAX_TOKENS,
+            temperature=settings.LLAMA_TEMPERATURE,
+            timeout=settings.LLAMA_TIMEOUT,
+            max_retries=settings.MAX_RETRIES,
+            retry_base_delay=settings.RETRY_BASE_DELAY,
+        )
+        self._client = AsyncOpenAI(
+            api_key=settings.LLAMA_API_KEY,
+            base_url=settings.LLAMA_BASE_URL,
+            timeout=float(self.timeout),
+        )
+
+    async def _raw_call(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema_hint: str,
+    ) -> str:
+        """Call Llama via OpenAI-compatible endpoint."""
+
+        # Inject schema requirement into system prompt
+        full_system = (
+            f"{system_prompt}\n\n"
+            f"RESPONSE FORMAT:\n"
+            f"You MUST respond with valid JSON matching this exact schema:\n"
+            f"{schema_hint}\n\n"
+            f"Rules:\n"
+            f"- Output ONLY the JSON object\n"
+            f"- No markdown wrapping\n"
+            f"- No extra text before or after\n"
+            f"- All required fields must be present\n"
+            f"- Enums must match exactly"
+        )
+
+        try:
+            response = await self._client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": full_system},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                response_format={"type": "json_object"},
+            )
+
+            content = response.choices[0].message.content
+
+            if not content:
+                raise LLMRetryableError("Empty response from Llama")
+
+            # Log usage (no sensitive data)
+            if response.usage:
+                logger.debug(
+                    f"Llama usage: "
+                    f"prompt={response.usage.prompt_tokens} "
+                    f"completion={response.usage.completion_tokens} "
+                    f"total={response.usage.total_tokens}"
+                )
+
+            return content
+
+        except OpenAIRateLimitError as e:
+            raise LLMRetryableError(f"Llama rate limit: {e}")
+        except OpenAITimeoutError as e:
+            raise LLMRetryableError(f"Llama timeout: {e}")
+        except OpenAIConnectionError as e:
+            raise LLMRetryableError(f"Llama connection error: {e}")
+        except OpenAIAPIError as e:
+            if hasattr(e, "status_code") and e.status_code and e.status_code >= 500:
+                raise LLMRetryableError(f"Llama server error ({e.status_code}): {e}")
+            raise LLMFatalError(f"Llama API error: {e}")
+
+    async def close(self):
+        """Release HTTP connection pool."""
+        await self._client.close()
+
+
+# ═══════════════════════════════════════════════════════
+# CLAUDE CLIENT (Reflection Agent)
+# ═══════════════════════════════════════════════════════
+
+class ClaudeClient(BaseLLMClient):
+    """
+    Claude via Anthropic API.
+
+    Used for final forensic verdict.
+    Prompt-enforced JSON output.
+    """
+
+    def __init__(self):
+        super().__init__(
+            model=settings.CLAUDE_MODEL,
+            max_tokens=settings.CLAUDE_MAX_TOKENS,
+            temperature=settings.CLAUDE_TEMPERATURE,
+            timeout=settings.CLAUDE_TIMEOUT,
+            max_retries=settings.MAX_RETRIES,
+            retry_base_delay=settings.RETRY_BASE_DELAY,
+        )
+        self._client = AsyncAnthropic(
+            api_key=settings.CLAUDE_API_KEY,
+            timeout=float(self.timeout),
+        )
+
+    async def _raw_call(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema_hint: str,
+    ) -> str:
+        """Call Claude via Anthropic API."""
+
+        full_system = (
+            f"{system_prompt}\n\n"
+            f"RESPONSE FORMAT:\n"
+            f"You MUST respond with valid JSON matching this exact schema:\n"
+            f"{schema_hint}\n\n"
+            f"Rules:\n"
+            f"- Output ONLY the JSON object\n"
+            f"- No markdown wrapping\n"
+            f"- No extra text before or after\n"
+            f"- All required fields must be present\n"
+            f"- Enums must match exactly\n"
+            f"- Do NOT include internal reasoning or chain-of-thought"
+        )
+
+        try:
+            response = await self._client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                system=full_system,
+                messages=[
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+
+            # Extract text blocks only
+            content = ""
+            for block in response.content:
+                if block.type == "text":
+                    content += block.text
+
+            if not content.strip():
+                raise LLMRetryableError("Empty response from Claude")
+
+            # Log usage (no sensitive data)
+            if response.usage:
+                logger.debug(
+                    f"Claude usage: "
+                    f"input={response.usage.input_tokens} "
+                    f"output={response.usage.output_tokens}"
+                )
+
+            return content
+
+        except AnthropicRateLimitError as e:
+            raise LLMRetryableError(f"Claude rate limit: {e}")
+        except AnthropicTimeoutError as e:
+            raise LLMRetryableError(f"Claude timeout: {e}")
+        except AnthropicConnectionError as e:
+            raise LLMRetryableError(f"Claude connection error: {e}")
+        except AnthropicAPIError as e:
+            if hasattr(e, "status_code") and e.status_code and e.status_code >= 500:
+                raise LLMRetryableError(
+                    f"Claude server error ({e.status_code}): {e}"
+                )
+            raise LLMFatalError(f"Claude API error: {e}")
+
+    async def close(self):
+        """Release HTTP connection pool."""
+        await self._client.close()
+
+
+# ═══════════════════════════════════════════════════════
+# CLIENT FACTORY (Singleton)
+# ═══════════════════════════════════════════════════════
+
+_critic_client: Optional[LlamaClient] = None
+_reflection_client: Optional[ClaudeClient] = None
+
+
+def get_critic_client() -> LlamaClient:
+    """Get or create singleton Llama client for Critic agent."""
+    global _critic_client
+    if _critic_client is None:
+        _critic_client = LlamaClient()
+        logger.info(f"Critic client initialized: {settings.LLAMA_MODEL}")
+    return _critic_client
+
+
+def get_reflection_client() -> ClaudeClient:
+    """Get or create singleton Claude client for Reflection agent."""
+    global _reflection_client
+    if _reflection_client is None:
+        _reflection_client = ClaudeClient()
+        logger.info(f"Reflection client initialized: {settings.CLAUDE_MODEL}")
+    return _reflection_client
+
+
+async def shutdown_clients() -> None:
+    """
+    Gracefully close all LLM clients.
+    Call this on FastAPI shutdown event.
+    """
+    global _critic_client, _reflection_client
+
+    if _critic_client is not None:
+        await _critic_client.close()
+        _critic_client = None
+        logger.info("Critic client closed")
+
+    if _reflection_client is not None:
+        await _reflection_client.close()
+        _reflection_client = None
+        logger.info("Reflection client closed")
