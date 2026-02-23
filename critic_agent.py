@@ -40,6 +40,7 @@ class PromptLoader:
     """
     Loads and caches prompt template + few-shot examples.
     Loaded once at first use, reused across requests.
+    Few-shot examples are optional — agent works without them.
     """
 
     _template: Optional[str] = None
@@ -58,14 +59,23 @@ class PromptLoader:
 
     @classmethod
     def get_fewshots(cls) -> List[Dict[str, Any]]:
+        """
+        Load few-shot examples if available.
+        Returns empty list if file is missing — agent still works.
+        """
         if cls._fewshots is None:
             if not _FEWSHOT_FILE.exists():
-                raise FileNotFoundError(
-                    f"Few-shot examples not found: {_FEWSHOT_FILE}"
+                logger.warning(
+                    "No few-shot file found — running without examples"
                 )
-            raw = json.loads(_FEWSHOT_FILE.read_text(encoding="utf-8"))
-            if not isinstance(raw, list) or len(raw) == 0:
-                raise ValueError("Few-shot file must be a non-empty list")
+                cls._fewshots = []
+                return cls._fewshots
+
+            raw = json.loads(
+                _FEWSHOT_FILE.read_text(encoding="utf-8")
+            )
+            if not isinstance(raw, list):
+                raise ValueError("Few-shot file must be a list")
             cls._fewshots = raw
             logger.info(f"Loaded {len(cls._fewshots)} few-shot examples")
         return cls._fewshots
@@ -219,12 +229,19 @@ class CriticAgent:
     def _build_system_prompt(self) -> str:
         """
         Assemble system prompt from template + few-shot examples.
+        Gracefully handles missing few-shots.
         """
         template = PromptLoader.get_template()
         examples = PromptLoader.get_fewshots()
-        formatted_examples = format_fewshot_examples(examples)
 
-        return template.replace("{few_shot_examples}", formatted_examples)
+        if examples:
+            formatted = format_fewshot_examples(examples)
+        else:
+            formatted = (
+                "(No examples provided — rely on instructions above.)"
+            )
+
+        return template.replace("{few_shot_examples}", formatted)
 
     def _build_user_prompt(
         self,
@@ -301,7 +318,9 @@ class CriticAgent:
                 schema=CriticReport,
             )
         except LLMFatalError:
-            logger.error(f"[{case.case_id}] Critic audit FAILED — LLM fatal error")
+            logger.error(
+                f"[{case.case_id}] Critic audit FAILED — LLM fatal error"
+            )
             raise
 
         # ── Step 4: Post-validation logging ──
@@ -313,7 +332,8 @@ class CriticAgent:
             f"consistent={report.rule_consistency} | "
             f"contradictions={contradiction_count} | "
             f"reinforcements={reinforcement_count} | "
-            f"confidence={report.confidence:.2f} ({report.confidence_level.value}) | "
+            f"confidence={report.confidence:.2f} "
+            f"({report.confidence_level.value}) | "
             f"rerun={report.rerun_recommended}"
         )
 
