@@ -1,315 +1,817 @@
-# DIGITRASE - AGENT ENABLED AUTOVALIDATION
+# 🔬 Forensic Document Validation API
 
-An **AI-assisted reasoning layer** for document tampering detection.
+### *The Intelligent Auditor for Document Integrity*
 
-This project does **NOT** detect tampering by itself.
+The **Forensic Document Validation API** is an AI-powered reasoning layer that sits on top of traditional, rule-based document security systems.
 
-Instead, it sits **on top of your existing deterministic detection system** and adds:
+**The Problem:** Traditional systems give you a "Tamper Score" (e.g., 8/10), but they can't explain *why* in plain English or notice when two different detection modules are contradicting each other.
 
-✅ Logical auditing of results  
-✅ Contradiction detection  
-✅ Human-readable forensic explanations  
-✅ Edge-case flagging for manual review  
-
-Think of it as:
-
-> **Your rules detect.  
-> This system thinks.  
-> Humans decide.**
-
----
-
-# 🧠 Big Picture
-
-You already have modules that analyze documents:
-
-| Module | Detects |
-|--------|---------|
-| Metadata | Editing tools, dates, authors |
-| Font | Mixed fonts, embedding |
-| Compression | Re-saves, quality shifts |
-| QR (optional) | QR anomalies |
-
-Each module produces:
+**The Solution:** This API uses two specialized AI agents (Llama & Claude) to act as a "Digital Auditor." It reviews the math, checks for contradictions, and writes a human-readable forensic report — **without ever changing your original security scores.**
 
 ```
-
-score (0–10)
-signals (list of findings)
-
-```
-
-Your system then computes:
-
-```
-
-deterministic_score = min(metadata + font + compression, 10)
-priority = Low / Medium / High
-
-```
-
-### That part stays exactly as-is.
-
----
-
-## What this API adds
-
-After your system finishes scoring:
-
-1. A **Critic AI** audits your results
-2. A **Reflection AI** produces a final forensic verdict
-
-Nothing is re-scored.
-
-Nothing is overridden.
-
-Only reasoning is added.
-
----
-
-# 🧱 Core Principle
-
-### ❗ AI never replaces your rules.
-
-LLMs are used ONLY to:
-
-- Check consistency
-- Explain evidence
-- Detect contradictions
-- Write summaries
-
-All scoring remains deterministic.
-
----
-
-# 🔄 Full Flow (Simple Version)
-
-```
-
-Your System
-↓
-JSON Case File
-↓
-Critic Agent (Llama)
-↓
-Reflection Agent (Claude)
-↓
-Forensic Verdict
-
+Your Document Scores ──→ AI Reasoning ──→ Forensic Verdict + Explanation
+   (unchanged)         (Llama + Claude)     (audit-ready report)
 ```
 
 ---
 
-# 🤖 Agent Roles
+## 📖 Table of Contents
 
-## 🧪 Critic Agent (Llama 3.2)
-
-Acts like an internal auditor.
-
-It:
-
-✅ Verifies scores match signals  
-✅ Finds contradictions between modules  
-✅ Finds reinforcement patterns  
-✅ Measures confidence  
-✅ Suggests reruns if needed  
-
-It does NOT:
-
-❌ Decide tampering  
-❌ Assign severity  
-❌ Modify scores  
+- [How It Works](#-how-it-works)
+- [What This Does & Doesn't Do](#-what-this-does--doesnt-do)
+- [The Safety-First Design](#%EF%B8%8F-the-safety-first-design)
+- [Architecture & Flow](#-architecture--flow)
+- [Project Structure](#-project-structure)
+- [File-by-File Guide](#-file-by-file-guide)
+- [Getting Started](#-getting-started)
+- [Running the API](#%EF%B8%8F-running-the-api)
+- [API Usage & Examples](#-api-usage--examples)
+- [Testing](#-testing)
+- [Configuration Reference](#%EF%B8%8F-configuration-reference)
+- [Error Handling](#-error-handling)
+- [Design Decisions](#-design-decisions)
+- [Troubleshooting](#-troubleshooting)
 
 ---
 
-## ⚖ Reflection Agent (Claude)
+## 🏗 How It Works
 
-Acts like a forensic examiner.
+Think of this system as a **courtroom**:
 
-It:
+### The Analogy
 
-✅ Produces tampered / not tampered  
-✅ Assigns severity (from score only)  
-✅ Writes explanation  
-✅ Lists evidence  
-✅ Flags human review  
+| Role | Who | What They Do |
+|------|-----|-------------|
+| **The Evidence** | Your Input | Scores and signals from your existing detection modules (metadata, fonts, compression) |
+| **The Critic** | Llama 3.2 | An internal auditor who checks if the evidence makes sense. *"Why is there a high score if no signals were found?"* |
+| **The Judge** | Claude | Reviews the auditor's notes and writes the final forensic verdict with a plain-English explanation |
 
-It does NOT:
-
-❌ Change scores  
-❌ Invent evidence  
-❌ Override priority  
-
----
-
-# 🛡 Safety Layers
-
-Five independent protections:
-
-| Layer | Purpose |
-|------|---------|
-| Input schema | Reject bad input |
-| Preflight | Catch obvious errors |
-| Critic audit | Logical consistency |
-| Schema enforcement | Reject LLM hallucinations |
-| Post-verdict fixes | Force deterministic values |
-
-LLMs can never override deterministic rules.
-
----
-
-# 📁 Project Structure
+### The Simple Version
 
 ```
+  [ Your System ]              [ This API ]
 
+  Document Analysis:
+  - Metadata score: 6        → Step 1: Critic audits the scores
+  - Font score: 4               "Metadata + fonts reinforce each other ✓"
+  - Compression score: 0        "But compression is clean — contradiction?"
+                              →
+                              → Step 2: Judge writes the verdict
+                                 "Tampered: Yes. Severity: High.
+                                  Explanation: Multiple edits confirmed
+                                  by font mismatch, but compression
+                                  anomaly flagged for review."
+```
+
+**Before this API:** Score = 10 → "High Risk." That's it. No explanation.
+
+**With this API:** Score = 10 → "High Risk. Here's why, here's what agrees, here's what contradicts, and here's whether a human should double-check."
+
+---
+
+## ✅ What This Does & Doesn't Do
+
+### What It Does
+
+| Capability | Description |
+|-----------|-------------|
+| ✅ Audits consistency | Checks if module scores match their signals |
+| ✅ Finds contradictions | "Metadata says edited, but compression looks clean" |
+| ✅ Spots reinforcement | "Metadata edits + font mismatch = both agree on tampering" |
+| ✅ Explains in plain English | Produces audit-ready forensic explanations |
+| ✅ Flags edge cases | Automatically marks uncertain cases for human review |
+
+### What It Does NOT Do
+
+| Boundary | Why It Matters |
+|----------|---------------|
+| ❌ Does NOT detect tampering | Detection is done by your existing modules — AI only *reasons about* results |
+| ❌ Does NOT change scores | Your deterministic scores are treated as read-only. Period. |
+| ❌ Does NOT process images | Input is structured JSON only — no files, no pixels |
+| ❌ Does NOT use ML training | No models to train, no datasets to maintain |
+| ❌ Does NOT leak AI thinking | Only summarized reasoning is returned — no raw chain-of-thought |
+
+**In short:** The AI **reasons and explains**. It does not **detect or score**.
+
+---
+
+## 🛡️ The Safety-First Design
+
+This system is built for forensic environments where accuracy is non-negotiable.
+
+### Five Protection Layers
+
+Every request passes through **five independent safety checks** before a response is returned:
+
+```
+Request In
+    │
+    ▼
+Layer 1: INPUT VALIDATION ───────── "Is the JSON valid? Does score match priority?"
+    │
+    ▼
+Layer 2: PREFLIGHT CHECK ────────── "Does the math add up? Any obvious data errors?"
+    │
+    ▼
+Layer 3: PRE-VERDICT CHECK ──────── "Is this an edge case? Should we flag for humans?"
+    │
+    ▼
+Layer 4: SCHEMA ENFORCEMENT ─────── "Did the AI return valid JSON? If not, ask it to fix it."
+    │
+    ▼
+Layer 5: POST-VERDICT CORRECTION ── "Did the AI change the score? Overwrite it back."
+    │
+    ▼
+Response Out (guaranteed correct)
+```
+
+| Layer | Type | What It Catches |
+|-------|------|----------------|
+| 1. Input Validation | Pydantic schema | Missing fields, wrong types, score↔priority mismatch |
+| 2. Preflight Check | Deterministic code | Score math errors, high scores with no signals |
+| 3. Pre-Verdict Check | Deterministic code | Low confidence, borderline scores, sparse evidence |
+| 4. Schema Enforcement | Pydantic + retry | Malformed AI output, hallucinated fields |
+| 5. Post-Verdict Correction | Deterministic code | AI tried to change score, severity, or case ID |
+
+**The core guarantee:** The AI can never override your deterministic rules. If it tries, the system silently corrects it and logs the correction.
+
+---
+
+## 🔄 Architecture & Flow
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      YOUR SYSTEM                            │
+│                                                             │
+│  Document ──→ Metadata Module ──┐                           │
+│             → Font Module ──────┤──→ Scores + Signals       │
+│             → Compression Module┤                           │
+│             → QR Module (opt) ──┘                           │
+│                                                             │
+│                         │                                   │
+│                         ▼                                   │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │           FORENSIC VALIDATION API                    │  │
+│  │                                                      │  │
+│  │    JSON Case File                                    │  │
+│  │         │                                            │  │
+│  │         ▼                                            │  │
+│  │   ┌─────────────┐     ┌────────────────────┐        │  │
+│  │   │   CRITIC     │────→│   REFLECTION       │        │  │
+│  │   │  (Llama 3.2) │     │   (Claude)         │        │  │
+│  │   │              │     │                    │        │  │
+│  │   │ • Consistency │     │ • Tampered? Y/N    │        │  │
+│  │   │ • Contradict. │     │ • Explanation       │        │  │
+│  │   │ • Confidence  │     │ • Evidence list     │        │  │
+│  │   └──────────────┘     │ • Review flag       │        │  │
+│  │                        └─────────┬──────────┘        │  │
+│  │                                  │                    │  │
+│  │                                  ▼                    │  │
+│  │                        Forensic Verdict               │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Agent Roles
+
+| Agent | Model | Think of it as... | Does | Does NOT |
+|-------|-------|-------------------|------|----------|
+| **Critic** | Llama 3.2 | Internal auditor | Checks consistency, finds contradictions, measures confidence | Classify, score, or make judgments |
+| **Reflection** | Claude | Forensic judge | Produces verdict, writes explanation, lists evidence | Change scores, override rules, or invent evidence |
+
+### Detailed Request Flow
+
+This is the complete journey of a single request, from the moment you send it to the moment you get a response:
+
+```
+                         POST /validate
+                              │
+                              ▼
+                    ┌───────────────────┐
+                    │   FastAPI Server   │  Receives your JSON
+                    │    (main.py)       │
+                    └────────┬──────────┘
+                             │
+                             ▼
+                    ┌───────────────────┐
+                    │  Input Validation  │  Is the JSON valid?
+                    │  (evidence.py)     │  Does score match priority?
+                    │                   │  If not → 422 error
+                    └────────┬──────────┘
+                             │
+                             ▼
+                    ┌───────────────────┐
+                    │   Orchestrator     │  Chains both agents
+                    │  (validator.py)    │  Tracks timing
+                    └────────┬──────────┘
+                             │
+         ╔═══════════════════╧═══════════════════╗
+         ║         STAGE 1: THE CRITIC            ║
+         ║                                        ║
+         ║  1. Preflight Check (no AI needed)     ║
+         ║     • Is score math correct?           ║
+         ║     • High score but zero signals?     ║
+         ║     • Zero score but many signals?     ║
+         ║                                        ║
+         ║  2. Build Prompt                       ║
+         ║     • Load instructions from file      ║
+         ║     • Add few-shot examples (optional) ║
+         ║     • Attach case data as JSON         ║
+         ║     • Include any preflight warnings   ║
+         ║                                        ║
+         ║  3. Call Llama 3.2                     ║
+         ║     • Sends prompt to AI               ║
+         ║     • Enforces JSON response format    ║
+         ║     • If bad response → auto-retry     ║
+         ║       (up to 3 attempts)               ║
+         ║     • Validates against CriticReport   ║
+         ║                                        ║
+         ║  Output: CriticReport                  ║
+         ║  • Are rules consistent? (yes/no)      ║
+         ║  • Any contradictions? (list)          ║
+         ║  • Any reinforcement? (list)           ║
+         ║  • Confidence level (0.0–1.0)          ║
+         ║  • Should we rerun? (yes/no)           ║
+         ╚════════════════╤═══════════════════════╝
+                          │
+         ╔════════════════╧═══════════════════════╗
+         ║       STAGE 2: THE JUDGE               ║
+         ║                                        ║
+         ║  1. Pre-Verdict Check (no AI needed)   ║
+         ║     • Critic confidence too low?       ║
+         ║     • High-impact contradictions?      ║
+         ║     • Borderline score (4-5)?          ║
+         ║     • Only one module has signals?     ║
+         ║     • Critic said "rerun"?             ║
+         ║                                        ║
+         ║  2. Build Prompt                       ║
+         ║     • Load judge instructions          ║
+         ║     • Combine case file + critic report║
+         ║     • Add review hints if flagged      ║
+         ║     • Remind: "score MUST stay same"   ║
+         ║                                        ║
+         ║  3. Call Claude                        ║
+         ║     • Sends prompt to AI               ║
+         ║     • No chain-of-thought allowed      ║
+         ║     • If bad response → auto-retry     ║
+         ║     • Validates against ForensicVerdict║
+         ║                                        ║
+         ║  4. Post-Verdict Safety Net            ║
+         ║     • Did AI change the score? Fix it. ║
+         ║     • Did AI change severity? Fix it.  ║
+         ║     • Did AI change case ID? Fix it.   ║
+         ║     • Pre-check said flag? Force flag. ║
+         ║                                        ║
+         ║  Output: ForensicVerdict               ║
+         ║  • Tampered: true/false                ║
+         ║  • Severity: High/Medium/Low           ║
+         ║  • Explanation: "plain English..."     ║
+         ║  • Evidence: [{source, finding, ...}]  ║
+         ║  • Flagged for human review: yes/no    ║
+         ╚════════════════╤═══════════════════════╝
+                          │
+                          ▼
+                ┌───────────────────┐
+                │  Pipeline Result   │
+                │                   │
+                │  • verdict         │  The final judgment
+                │  • critic_report   │  The audit findings
+                │  • duration_ms     │  How long it took
+                │  • success: true   │
+                └────────┬──────────┘
+                         │
+                         ▼
+                ┌───────────────────┐
+                │  JSON Response     │ → 200 OK
+                │  (back to you)     │
+                └───────────────────┘
+```
+
+---
+
+## 📂 Project Structure
+
+```
 forensic-validation-api/
-
-app/
-├── main.py
-├── config.py
-
-agents/
-├── critic_agent.py
-└── reflection_agent.py
-
-schemas/
-├── evidence.py
-├── critic.py
-└── reflection.py
-
-services/
-├── llm_clients.py
-└── validator.py
-
-prompts/
-├── critic_prompt.txt
-├── reflection_prompt.txt
-└── fewshot_examples.json
-
-tests/
-└── test_pipeline.py
-
-````
-
----
-
-# 📄 File Overview
-
-### main.py
-FastAPI server and endpoints.
-
-### config.py
-Loads environment variables.
-
-### schemas/
-Strict data contracts (input, critic output, final verdict).
-
-### agents/
-LLM reasoning logic.
-
-### services/
-LLM clients + pipeline orchestration.
-
-### prompts/
-System prompts for both agents.
-
-### tests/
-49 offline tests covering the entire pipeline.
+│
+├── app/
+│   ├── __init__.py
+│   ├── main.py                        ← API server (start here)
+│   ├── config.py                      ← Settings from .env
+│   │
+│   ├── agents/                        ← The "brains"
+│   │   ├── __init__.py
+│   │   ├── critic_agent.py            ← The Auditor (Llama 3.2)
+│   │   └── reflection_agent.py        ← The Judge (Claude)
+│   │
+│   ├── prompts/                       ← AI instructions
+│   │   ├── critic_prompt.txt          ← What the Critic should do
+│   │   ├── reflection_prompt.txt      ← What the Judge should do
+│   │   └── fewshot_examples.json      ← Optional learning examples
+│   │
+│   ├── schemas/                       ← Data rules (what's allowed)
+│   │   ├── __init__.py
+│   │   ├── evidence.py                ← Input shape
+│   │   ├── critic.py                  ← Critic output shape
+│   │   └── reflection.py             ← Final verdict shape
+│   │
+│   ├── services/                      ← The "engine"
+│   │   ├── __init__.py
+│   │   ├── llm_clients.py            ← Talks to Llama & Claude
+│   │   └── validator.py              ← Glues everything together
+│   │
+│   └── utils/
+│       ├── __init__.py
+│       └── logger.py                  ← Logging setup
+│
+├── tests/
+│   ├── __init__.py
+│   └── test_pipeline.py              ← 49 automated tests
+│
+├── .env                               ← Your API keys (NEVER commit)
+├── .env.example                       ← Template for .env
+├── .gitignore                         ← Protects secrets from git
+├── requirements.txt                   ← Python packages needed
+└── README.md                          ← You are here
+```
 
 ---
 
-# 🚀 Quick Start
+## 📖 File-by-File Guide
 
-## Install
+### 🔧 Configuration Files
+
+| File | What It Does | Who Cares |
+|------|-------------|-----------|
+| **`config.py`** | Reads your `.env` file and makes all settings available to the app. API keys, model names, retry limits, timeouts — everything lives here. No secrets are ever hard-coded. | Developers configuring the system |
+| **`.env`** | Your actual API keys and settings. Created by copying `.env.example`. **Never push this to git.** | Everyone setting up the project |
+| **`.env.example`** | A safe-to-share template showing every setting you can configure, with descriptions. Copy this to `.env` and fill in your keys. | New developers onboarding |
+
+### 📐 Schemas — "What Should the Data Look Like?"
+
+Think of schemas as **contracts**. They define exactly what shape data must be in. If data doesn't match, it's rejected immediately — before any AI ever sees it.
+
+| File | What It Defines | Key Rule It Enforces |
+|------|----------------|---------------------|
+| **`schemas/evidence.py`** | **The input format.** What your detection modules must send: module results (score + signals), combined score, and priority level. Also defines `ModuleResult` — the standard shape for each module's output. | Score 9 + priority "Low" = **rejected**. Priority must always match the score. |
+| **`schemas/critic.py`** | **The Critic's output format.** What the auditor must produce: consistency check, contradiction list (with type, impact, and involved modules), reinforcing patterns, confidence level, and rerun recommendation. | Confidence of 0.95 + level "low" = **rejected**. The number must match the label. |
+| **`schemas/reflection.py`** | **The Judge's output format.** The final verdict: tampered yes/no, severity, plain-English explanation, structured evidence list, confidence, and human review flag. | Must include **at least 1 evidence item**. No empty verdicts allowed. |
+
+**Why "extra = forbid" everywhere?** If the AI invents a field that doesn't exist in the contract (e.g., `"my_new_score": 99`), the system rejects it and asks the AI to try again. This prevents hallucinations from leaking into your data.
+
+### 🤖 Agents — "The Brains"
+
+| File | Role | What Happens Inside |
+|------|------|-------------------|
+| **`agents/critic_agent.py`** | **The Auditor** (Llama 3.2) | 1. **Preflight check** — catches obvious data errors before calling AI (saves time + money). 2. **Loads instructions** — reads `critic_prompt.txt` + optional few-shot examples. 3. **Calls Llama** — sends the case file, gets back an audit report. 4. **Returns validated CriticReport**. Key functions: `preflight_check()` (sanity checks), `PromptLoader` (caches prompts), `serialize_case_file()` (formats data for AI). |
+| **`agents/reflection_agent.py`** | **The Judge** (Claude) | 1. **Pre-verdict check** — should this case be flagged for humans? (low confidence, contradictions, borderline scores). 2. **Loads instructions** — reads `reflection_prompt.txt`. 3. **Calls Claude** — sends case file + critic report, gets back a verdict. 4. **Post-verdict safety net** — if AI changed the score or severity, silently corrects it back. Key functions: `should_flag_for_review()` (edge case detection), `validate_verdict()` (the safety net). |
+
+### 🔌 Services — "The Engine"
+
+| File | Role | What Happens Inside |
+|------|------|-------------------|
+| **`services/llm_clients.py`** | **Talks to the AI models** | Contains `LlamaClient` (for Critic) and `ClaudeClient` (for Judge). Both share a `BaseLLMClient` that provides: **schema-enforced generation** (AI must return data matching the contract), **self-healing retry** (if AI returns bad JSON, the error is fed back and AI tries again — works ~80% of the time), **robust JSON extraction** (handles markdown wrapping, embedded JSON, nested braces), and **classified errors** (rate limits get retried, auth errors don't). Connection pools are shared via singletons — efficient for production. |
+| **`services/validator.py`** | **Glues everything together** | The single entry point: `ForensicValidator.validate()` chains Critic → Reflection and returns a `PipelineResult` with the verdict, critic report, timing, and success status. If something fails, it tells you exactly *which stage* failed and *why*. The convenience function `validate_case()` makes it a one-liner. |
+
+### 🌐 API Layer
+
+| File | Role | What It Provides |
+|------|------|-----------------|
+| **`main.py`** | **The web server** | A FastAPI application with two endpoints: `GET /health` (is the system alive?) and `POST /validate` (run the full pipeline). Also handles: startup/shutdown lifecycle (creates and closes AI connections cleanly), request logging (method, path, status code, duration — no sensitive data), clean error messages (custom handler for validation errors), and standardized error responses across all failure types. |
+
+### 📝 Prompts — "AI Instructions"
+
+| File | What It Tells the AI |
+|------|---------------------|
+| **`prompts/critic_prompt.txt`** | "You are a forensic evidence auditor. Here are your 5 responsibilities. Here are 6 things you must NEVER do. Here are the scoring rules so you can check the math. Now analyze this case." |
+| **`prompts/reflection_prompt.txt`** | "You are a forensic judge. You receive the case file AND the auditor's report. Here's how to decide tampered/not. Severity MUST come from the deterministic score — don't invent your own. Here are 7 things you must NEVER do." |
+| **`prompts/fewshot_examples.json`** | **Optional.** Example cases showing the Critic how to reason about clean documents, tampered documents, contradictions, and edge cases. If this file doesn't exist, the system works fine — it just relies on the written instructions alone. |
+
+### 🧪 Tests
+
+| File | What It Tests |
+|------|--------------|
+| **`tests/test_pipeline.py`** | **49 tests** covering everything: input validation, schema enforcement, preflight checks, pre-verdict checks, post-verdict corrections, JSON serialization, full end-to-end pipeline with mocked AI, error paths (what if Llama fails? what if Claude fails? what if a prompt file is missing?), and more. **All tests run offline** — AI calls are mocked. Fast, deterministic, no API keys needed. |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+You need three things:
+
+| What | Where to Get It |
+|------|----------------|
+| Python 3.10+ | [python.org](https://python.org) |
+| Together AI API key | [together.ai](https://together.ai) (for Llama — the Critic) |
+| Anthropic API key | [anthropic.com](https://anthropic.com) (for Claude — the Judge) |
+
+### Step 1: Install
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-````
+# Clone the project
+git clone https://github.com/your-org/forensic-validation-api.git
+cd forensic-validation-api
 
-Add API keys to `.env`.
+# Create a virtual environment (keeps dependencies isolated)
+python -m venv venv
+source venv/bin/activate        # Linux/Mac
+# venv\Scripts\activate         # Windows
+
+# Install all required packages
+pip install -r requirements.txt
+```
+
+### Step 2: Configure
+
+```bash
+# Copy the template
+cp .env.example .env
+```
+
+Open `.env` in any text editor and add your API keys:
+
+```env
+LLAMA_API_KEY=your_together_ai_key_here
+CLAUDE_API_KEY=your_anthropic_key_here
+```
+
+That's the minimum. Everything else has sensible defaults.
+
+### Step 3: Verify
+
+```bash
+# Run the test suite (no API keys needed — everything is mocked)
+pytest tests/test_pipeline.py -v
+
+# You should see: 49 passed ✅
+```
+
+If all tests pass, your setup is correct.
 
 ---
 
-## Run Tests
+## 🛠️ Running the API
+
+### Development Mode (auto-reloads on code changes)
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+### Production Mode
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+### Verify It's Running
+
+```bash
+curl http://localhost:8000/health
+```
+
+You should see:
+
+```json
+{
+  "status": "healthy",
+  "models": {
+    "critic": "meta-llama/Llama-3.2-3B-Instruct",
+    "reflection": "claude-sonnet-4-20250514"
+  }
+}
+```
+
+### Interactive Documentation
+
+Once the server is running, open your browser:
+
+| URL | What You Get |
+|-----|-------------|
+| [http://localhost:8000/docs](http://localhost:8000/docs) | **Swagger UI** — try out requests directly in your browser |
+| [http://localhost:8000/redoc](http://localhost:8000/redoc) | **ReDoc** — cleaner documentation view |
+
+---
+
+## 📬 API Usage & Examples
+
+### Endpoint: `POST /validate`
+
+Send your module scores in, get a forensic verdict out.
+
+### Request
+
+```bash
+curl -X POST http://localhost:8000/validate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "case_id": "DOC-2024-0042",
+    "metadata": {
+      "score": 6,
+      "signals": [
+        "multiple_tools_detected",
+        "creation_date_mismatch",
+        "producer_editor_conflict"
+      ]
+    },
+    "font": {
+      "score": 5,
+      "signals": [
+        "mixed_font_families",
+        "font_embedding_mismatch"
+      ]
+    },
+    "compression": {
+      "score": 4,
+      "signals": [
+        "double_compression_detected",
+        "quality_level_inconsistency"
+      ]
+    },
+    "qr": null,
+    "deterministic_score": 10,
+    "priority": "High"
+  }'
+```
+
+### Successful Response (200)
+
+```json
+{
+  "case_id": "DOC-2024-0042",
+  "success": true,
+  "duration_ms": 4523.17,
+  "verdict": {
+    "case_id": "DOC-2024-0042",
+    "tampered": true,
+    "severity": "High",
+    "deterministic_score": 10,
+    "confidence": 0.93,
+    "confidence_level": "very_high",
+    "explanation": "Document exhibits strong tampering indicators across all three detection modules. Multiple editing tools with date mismatch in metadata, mixed font families suggesting content from different sources, and double compression confirming the document was re-saved multiple times.",
+    "evidence": [
+      {
+        "source": "metadata",
+        "finding": "Multiple tools and creation date mismatch indicate editing",
+        "weight": "supporting"
+      },
+      {
+        "source": "font",
+        "finding": "Mixed font families from different sources",
+        "weight": "supporting"
+      },
+      {
+        "source": "compression",
+        "finding": "Double compression confirms multiple re-saves",
+        "weight": "supporting"
+      }
+    ],
+    "critic_report_included": true,
+    "flagged_for_human_review": false,
+    "review_reason": null
+  },
+  "critic_report": {
+    "rule_consistency": true,
+    "contradictions": [],
+    "reinforcement": [
+      "Metadata multiple_tools reinforces font mixed_font_families",
+      "All three modules independently indicate tampering"
+    ],
+    "confidence": 0.95,
+    "confidence_level": "very_high",
+    "confidence_reason": "Strong independent signals across all modules",
+    "audit_notes": "Score of 10 is correctly capped from raw sum of 15.",
+    "rerun_recommended": false
+  }
+}
+```
+
+### Error: Bad Input (422)
+
+What happens when your input violates the rules:
+
+```json
+{
+  "success": false,
+  "error": "validation_error",
+  "detail": "body → priority: Score 10 must be High priority"
+}
+```
+
+### Error: AI Pipeline Failed (502)
+
+What happens when the AI models are unavailable:
+
+```json
+{
+  "success": false,
+  "error": "pipeline_error",
+  "case_id": "DOC-2024-0042",
+  "failed_stage": "critic",
+  "detail": "All 3 attempts failed for meta-llama/Llama-3.2-3B-Instruct"
+}
+```
+
+### Input Field Reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `case_id` | string | ✅ | Your unique document identifier |
+| `metadata` | object | ✅ | Metadata module result |
+| `metadata.score` | int (0–10) | ✅ | How suspicious the metadata is |
+| `metadata.signals` | string[] | ❌ | What was detected (empty = nothing found) |
+| `font` | object | ✅ | Font module result |
+| `font.score` | int (0–10) | ✅ | How suspicious the fonts are |
+| `font.signals` | string[] | ❌ | What was detected |
+| `compression` | object | ✅ | Compression module result |
+| `compression.score` | int (0–10) | ✅ | How suspicious the compression is |
+| `compression.signals` | string[] | ❌ | What was detected |
+| `qr` | object | ❌ | Optional QR module result (supplementary only) |
+| `deterministic_score` | int (0–10) | ✅ | Your pre-computed combined score |
+| `priority` | string | ✅ | Must match score (see below) |
+
+### Scoring Rules
+
+Your input must follow these rules. The API enforces them:
+
+```
+Combined score formula:
+  deterministic_score = min(metadata + font + compression, 10)
+
+Priority must match:
+  score >= 8       → priority MUST be "High"
+  5 <= score < 8   → priority MUST be "Medium"
+  score < 5        → priority MUST be "Low"
+
+QR module:
+  Does NOT contribute to the score (supplementary evidence only)
+```
+
+Mismatches are rejected with a 422 error before any AI processing occurs.
+
+---
+
+## 🧪 Testing
+
+All 49 tests run **completely offline** — no API keys needed, no network calls. AI responses are mocked.
+
+### Run All Tests
 
 ```bash
 pytest tests/test_pipeline.py -v
 ```
 
----
-
-## Start API
+### Run Specific Categories
 
 ```bash
-uvicorn app.main:app --reload
+# Only schema validation tests
+pytest tests/test_pipeline.py::TestEvidenceCaseFileSchema -v
+
+# Only full pipeline tests
+pytest tests/test_pipeline.py::TestFullPipeline -v
+
+# A single specific test
+pytest tests/test_pipeline.py::TestPostVerdictValidation::test_score_correction -v
+
+# With print output (see what's happening)
+pytest tests/test_pipeline.py -v -s
 ```
 
-Open:
+### What's Tested
 
-[http://localhost:8000/docs](http://localhost:8000/docs)
-
----
-
-# 📡 Example Request
-
-```bash
-POST /validate
-```
-
-```json
-{
-  "case_id": "DOC1",
-  "metadata": {"score":6,"signals":["tool_mismatch"]},
-  "font": {"score":5,"signals":["mixed_fonts"]},
-  "compression": {"score":4,"signals":["double_compression"]},
-  "deterministic_score":10,
-  "priority":"High"
-}
-```
+| Category | Tests | What It Checks |
+|----------|-------|---------------|
+| Schema: Evidence | 10 | Input validation, score↔priority boundaries, extra field rejection |
+| Schema: Critic | 4 | Confidence alignment, contradiction structure |
+| Schema: Verdict | 3 | Evidence requirements, field restrictions |
+| Preflight Checks | 5 | Score math errors, signal count anomalies |
+| Pre-Verdict Checks | 6 | Human review flagging logic |
+| Post-Verdict Correction | 5 | Score/severity/case_id correction by safety net |
+| Serialization | 3 | JSON output format |
+| Full Pipeline | 4 | End-to-end with mocked AI (clean, tampered, etc.) |
+| Error Paths | 3 | What happens when Critic fails, Reflection fails, prompts missing |
+| Pipeline Classes | 4 | Error/Result object behavior |
+| Prompt Loading | 2 | Cache clearing, missing file handling |
+| **Total** | **49** | **Complete coverage — all offline** |
 
 ---
 
-# ⚙ Configuration
+## ⚙️ Configuration Reference
 
-All settings come from `.env`.
+All settings live in `.env`. Nothing is hard-coded.
 
-Supports:
+### Required Settings
 
-* Together AI
-* Groq
-* Fireworks
-* Ollama
-* vLLM
+| Variable | Description |
+|----------|-------------|
+| `LLAMA_API_KEY` | Your API key for the Llama provider (e.g., Together AI) |
+| `CLAUDE_API_KEY` | Your Anthropic API key for Claude |
+
+### Optional Settings (with defaults)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLAMA_BASE_URL` | `https://api.together.xyz/v1` | API endpoint (change for different providers) |
+| `LLAMA_MODEL` | `meta-llama/Llama-3.2-3B-Instruct` | Which Llama model to use |
+| `LLAMA_MAX_TOKENS` | `2048` | Maximum response length |
+| `LLAMA_TEMPERATURE` | `0.0` | Randomness (0 = deterministic, recommended) |
+| `LLAMA_TIMEOUT` | `30` | Seconds before timeout |
+| `CLAUDE_MODEL` | `claude-sonnet-4-20250514` | Which Claude model to use |
+| `CLAUDE_MAX_TOKENS` | `2048` | Maximum response length |
+| `CLAUDE_TEMPERATURE` | `0.0` | Randomness (0 = deterministic, recommended) |
+| `CLAUDE_TIMEOUT` | `60` | Seconds before timeout |
+| `MAX_RETRIES` | `3` | How many times to retry failed AI calls |
+| `RETRY_BASE_DELAY` | `1.0` | Base delay between retries (doubles each time) |
+| `LOG_LEVEL` | `INFO` | Logging detail: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+
+### Switching Llama Providers
+
+Any OpenAI-compatible API works. Just change `LLAMA_BASE_URL`:
+
+| Provider | Base URL | Notes |
+|----------|----------|-------|
+| Together AI | `https://api.together.xyz/v1` | Default, recommended |
+| Groq | `https://api.groq.com/openai/v1` | Very fast |
+| Fireworks | `https://api.fireworks.ai/inference/v1` | Good alternative |
+| Ollama (local) | `http://localhost:11434/v1` | Free, runs on your machine |
+| vLLM (local) | `http://localhost:8000/v1` | Self-hosted |
 
 ---
 
-# 🧩 Design Philosophy
+## 🚨 Error Handling
 
-| Principle                | Reason                  |
-| ------------------------ | ----------------------- |
-| Deterministic first      | Legal reliability       |
-| Two agents               | Separation of reasoning |
-| No chain-of-thought      | Audit safety            |
-| Temperature 0            | Reproducibility         |
-| Post-verdict enforcement | Defense in depth        |
-| Optional few-shots       | Flexible tuning         |
+### How Errors Are Classified
+
+| What Went Wrong | HTTP Code | Does It Retry? | Example |
+|----------------|-----------|---------------|---------|
+| Bad input JSON | 422 | No | Missing field, wrong priority |
+| AI rate limited | 502 | Yes (3 times) | Too many requests to API |
+| AI timed out | 502 | Yes (3 times) | Model took too long |
+| Invalid API key | 502 | No | Wrong key in `.env` |
+| AI returned bad JSON | — | Yes (self-healing) | AI wrapped JSON in markdown |
+| AI invented fields | — | Yes (self-healing) | AI added hallucinated data |
+| Unexpected bug | 500 | No | Code error (check logs) |
+
+### How Self-Healing Retry Works
+
+When the AI returns invalid output:
+
+1. The system extracts the specific error ("field X is missing")
+2. It appends this to the prompt: "Your previous response was invalid. Error: field X is missing. Please fix."
+3. The AI is called again with this context
+4. This works ~80% of the time — AI models are good at correcting formatting when told what broke
+
+This happens automatically inside `llm_clients.py`. You never see it unless you check the debug logs.
 
 ---
 
-# 🏁 Summary
+## 🧠 Design Decisions
 
-This is NOT an AI detector.
+| Decision | Why We Made It |
+|----------|---------------|
+| **AI never overrides scores** | Forensic compliance. Your deterministic rules are the legal source of truth. AI adds reasoning, not judgment. |
+| **Two agents, not one** | Separation of concerns. An auditor shouldn't also be the judge. The Critic audits evidence; the Judge makes the call. Neither does both. |
+| **Temperature 0.0** | Forensic systems need reproducible outputs. Same input should give same output. No creative randomness. |
+| **No chain-of-thought in output** | Legal safety. Raw AI thinking can contain speculation that shouldn't appear in audit reports. Only polished explanations are returned. |
+| **`extra = "forbid"` on all schemas** | Anti-hallucination. If the AI invents a field, it's caught immediately and the AI is asked to try again. |
+| **Post-verdict enforcement** | Defense in depth. Even if the AI somehow returns the wrong severity after all retries, the safety net corrects it before the response leaves the system. |
+| **Classified exceptions** | Rate limits deserve retries. Auth failures don't. This saves both time and API costs. |
+| **Singleton AI clients** | HTTP connection pools are expensive to create. By reusing them across requests, the system stays fast under load. |
+| **Preflight checks before AI** | Why waste an API call (and money) if the data is obviously wrong? Catch simple math errors instantly. |
+| **Few-shots are optional** | The system works with just the written instructions. Add learning examples later when you have curated cases. |
 
-This is an **AI forensic reasoning layer**.
+---
 
-It:
+## ❗ Troubleshooting
 
-✔ trusts your rules
-✔ audits your outputs
-✔ explains results
-✔ flags uncertainty
-✔ protects against hallucination
+| Problem | Solution |
+|---------|----------|
+| `ModuleNotFoundError` | Run `pip install -r requirements.txt` |
+| `ValidationError: Score/priority mismatch` | Fix your input JSON. Score 9 → priority must be "High" |
+| `502 Pipeline error` | Check API keys in `.env`. Try increasing `MAX_RETRIES=5` |
+| `No few-shot file found` | This is fine — it's optional. System works without it |
+| Tests fail | Make sure you're on Python 3.10+. Try `pip install pytest-asyncio` |
+| Slow responses | Lower `LLAMA_MAX_TOKENS=1024`. Or switch to a faster provider (Groq) |
+| `Connection refused` | Is the server running? `uvicorn app.main:app --reload --port 8000` |
 
+**Logs:** Watch your terminal. Every request logs: `timestamp | module | level | message`. Set `LOG_LEVEL=DEBUG` in `.env` for maximum detail.
+
+---
+
+## 🚀 What's Next
+
+| Enhancement | Status |
+|-------------|--------|
+| Few-shot examples | Add to `prompts/fewshot_examples.json` |
+| Docker | Add `Dockerfile` for containerized deployment |
+| Calibration | Tune confidence thresholds with real-world data |
+| Metrics | Add Prometheus/Grafana monitoring |
+| Batch processing | Validate multiple documents in parallel |
+
+---
+
+*Built for explainable forensics. Deterministic + Auditable + AI-Reasoned.*
