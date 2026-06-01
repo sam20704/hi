@@ -1,0 +1,48 @@
+{
+  "status": "Completed",
+  "documents": [
+    {
+      "fontAnalysis": [
+        {
+          "pageNumber": 1,
+          "tampered": true
+        }
+      ],
+      "qrAnalysis": [],
+      "metaAnalysis": {
+        "inconsistentDate": false,
+        "inconsistentMetaDate": "true",
+        "inconsistentSoftware": false,
+        "inconsistentWhiteRegion": true,
+        "tampered": true
+      },
+      "artefactAnalysis": {
+        "pages": []
+      },
+      "combinedResultFiles": [
+        {
+          "pageNumber": 1,
+          "fileStoreId": "ce885dbd-11ec-4517-9792-23bf5d196885"
+        }
+      ],
+      "documentName": "4.pdf",
+      "fileStoreId": "eb6e1202-3e32-40bc-96e2-66927c7a295c",
+      "overallScore": 3,
+      "reasons": "Difference between modification date(2024:08:02 14:20:16) and creation date(2022:09:13 10:04:26) is 688 days; Whiteout text Se—p , 20 (USD) Rd, #603 ID Avondale Estates, Georgia 30002 United States BILLED TO SU—B SCRIPTION Germany ID 16CHvBTHJ6ned47kJ Professional Yearly 1 USD Amount Due ( ) $0.00 Powered by Chargebee has been detected, containing critical information (numbers/words).; The Font Analysis module has identified numerous detections (14).",
+      "priority": "Low",
+      "fontScore": 1,
+      "fontReason": [
+        "The Font Analysis module has identified numerous detections (14)."
+      ],
+      "metaScore": 4,
+      "metaReason": [
+        "Difference between modification date(2024:08:02 14:20:16) and creation date(2022:09:13 10:04:26) is 688 days",
+        "Whiteout text Se—p , 20 (USD) Rd, #603 ID Avondale Estates, Georgia 30002 United States BILLED TO SU—B SCRIPTION Germany ID 16CHvBTHJ6ned47kJ Professional Yearly 1 USD Amount Due ( ) $0.00 Powered by Chargebee has been detected, containing critical information (numbers/words)."
+      ],
+      "qrScore": 0,
+      "qrReason": [],
+      "artefactScore": 0,
+      "artefactReason": []
+    }
+  ]
+}
